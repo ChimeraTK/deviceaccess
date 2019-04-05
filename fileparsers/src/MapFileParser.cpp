@@ -152,6 +152,70 @@ namespace ChimeraTK {
             registerAccess = RegisterInfoMap::RegisterInfo::Access::READWRITE;
           else if(accessString == "WO")
             registerAccess = RegisterInfoMap::RegisterInfo::Access::WRITE;
+          else if(accessString == "I0")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I0;
+          else if(accessString == "I1")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I1;
+          else if(accessString == "I2")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I2;
+          else if(accessString == "I3")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I3;
+          else if(accessString == "I4")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I4;
+          else if(accessString == "I5")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I5;
+          else if(accessString == "I6")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I6;
+          else if(accessString == "I7")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I7;
+          else if(accessString == "I8")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I8;
+          else if(accessString == "I9")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I9;
+          else if(accessString == "I10")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I10;
+          else if(accessString == "I11")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I11;
+          else if(accessString == "I12")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I12;
+          else if(accessString == "I13")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I13;
+          else if(accessString == "I14")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I14;
+          else if(accessString == "I15")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I15;
+          else if(accessString == "I16")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I16;
+          else if(accessString == "I17")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I17;
+          else if(accessString == "I18")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I18;
+          else if(accessString == "I19")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I19;
+          else if(accessString == "I20")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I20;
+          else if(accessString == "I21")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I21;
+          else if(accessString == "I22")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I22;
+          else if(accessString == "I23")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I23;
+          else if(accessString == "I24")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I24;
+          else if(accessString == "I25")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I25;
+          else if(accessString == "I26")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I6;
+          else if(accessString == "I27")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I27;
+          else if(accessString == "I28")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I28;
+          else if(accessString == "I29")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I29;
+          else if(accessString == "I30")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I30;
+          else if(accessString == "I31")
+            registerAccess = RegisterInfoMap::RegisterInfo::Access::I31;
           else
             throw ChimeraTK::logic_error("Parsing error in map file '" + file_name + "' on line " +
                 std::to_string(line_nr) +

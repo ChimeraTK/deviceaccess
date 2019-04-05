@@ -55,7 +55,40 @@ namespace ChimeraTK {
      */
     class RegisterInfo : public ChimeraTK::RegisterInfo {
      public:
-      enum Access { READ = 1 << 0, WRITE = 1 << 1, READWRITE = READ | WRITE };
+      enum Access { READ = 1 << 0, WRITE = 1 << 1, READWRITE = READ | WRITE,
+      I0 = 1 << 2,
+      I1 = 2 << 2,
+      I2 = 3 << 2,
+      I3 = 4 << 2,
+      I4 = 5 << 2,
+      I5 = 6 << 2,
+      I6 = 7 << 2,
+      I7 = 8 << 2,
+      I8 = 9 << 2,
+      I9 = 10 << 2,
+      I10 = 11 << 2,
+      I11 = 12 << 2,
+      I12 = 13 << 2,
+      I13 = 14 << 2,
+      I14 = 15 << 2,
+      I15 = 16 << 2,
+      I16 = 17 << 2,
+      I17 = 18 << 2,
+      I18 = 19 << 2,
+      I19 = 20 << 2,
+      I20 = 21 << 2,
+      I21 = 22 << 2,
+      I22 = 23 << 2,
+      I23 = 24 << 2,
+      I24 = 25 << 2,
+      I25 = 26 << 2,
+      I26 = 27 << 2,
+      I27 = 28 << 2,
+      I28 = 29 << 2,
+      I29 = 30 << 2,
+      I30 = 31 << 2,
+      I31 = 32 << 2
+      };
       /** Enum descibing the data interpretation:
        *  \li Fixed point (includes integer = 0 fractional bits)
        *  \li IEEE754 floating point
