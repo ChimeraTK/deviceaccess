@@ -17,12 +17,15 @@ namespace ChimeraTK {
   
   template<typename UserType> 
   struct InterruptWaitingAccessor_impl : public NumericAddressedBackendRegisterAccessor<UserType,FixedPointConverter,true>, public InterruptWaitingAccessor{                
-        cppext::future_queue<UserType> myQueue;
-        UserType buffer;
 
-        InterruptWaitingAccessor_impl(boost::shared_ptr<DeviceBackend> dev, const RegisterPath& registerPathName,
+        InterruptWaitingAccessor_impl(size_t interruptNum, boost::shared_ptr<DeviceBackend> dev, const RegisterPath& registerPathName,
         size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags) : 
-        NumericAddressedBackendRegisterAccessor<UserType,FixedPointConverter,true>(dev, registerPathName, numberOfWords, wordOffsetInRegister, flags) {};
+        NumericAddressedBackendRegisterAccessor<UserType,FixedPointConverter,true>(dev, registerPathName, numberOfWords, wordOffsetInRegister, flags),
+        interruptNum(interruptNum) {};
+        
+        ~InterruptWaitingAccessor_impl() {
+            
+        }
         
         void send() override {
             myQueue.push(UserType());
@@ -34,6 +37,11 @@ namespace ChimeraTK {
         void doPostRead() override {
         //       buffer_2D[0][0] = buffer;
         }
+
+        cppext::future_queue<UserType> myQueue;
+        UserType buffer;
+        size_t interruptNum;
+        
   };
   
 

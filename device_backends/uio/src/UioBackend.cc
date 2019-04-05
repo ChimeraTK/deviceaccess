@@ -177,14 +177,15 @@ namespace ChimeraTK {
             const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags) {
         boost::shared_ptr<NDRegisterAccessor < UserType>> accessor;
 
-                accessor = boost::shared_ptr<NDRegisterAccessor < UserType >> 
-                        (new InterruptWaitingAccessor_impl<UserType>(registerPathName, numberOfWords, wordOffsetInRegister, flags));
-
                 boost::shared_ptr<RegisterInfo> info = getRegisterInfo(registerPathName);
                 auto registerInfo = boost::static_pointer_cast<RegisterInfoMap::RegisterInfo>(info);  
                                 
                 // detemine index from RegisterPath
                 int i = (registerInfo->registerAccess) >> 2;
+
+                accessor = boost::shared_ptr<NDRegisterAccessor < UserType >> 
+                        (new InterruptWaitingAccessor_impl<UserType>(i, shared_from_this(), registerPathName, numberOfWords, wordOffsetInRegister, flags));
+
                 accessorLists[i].push_back(accessor);
         return accessor;
     }
