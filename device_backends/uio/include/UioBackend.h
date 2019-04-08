@@ -9,41 +9,12 @@
 #include "NumericAddressedBackendRegisterAccessor.h"
 
 namespace ChimeraTK {
-
-        // we need a non-templated base class
+    
+  // we need a non-templated base class
   struct InterruptWaitingAccessor{
           virtual void send() = 0;
   };
-  
-  template<typename UserType> 
-  struct InterruptWaitingAccessor_impl : public NumericAddressedBackendRegisterAccessor<UserType,FixedPointConverter,true>, public InterruptWaitingAccessor{                
-
-        InterruptWaitingAccessor_impl(size_t interruptNum, boost::shared_ptr<DeviceBackend> dev, const RegisterPath& registerPathName,
-        size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags) : 
-        NumericAddressedBackendRegisterAccessor<UserType,FixedPointConverter,true>(dev, registerPathName, numberOfWords, wordOffsetInRegister, flags),
-        interruptNum(interruptNum) {};
-        
-        ~InterruptWaitingAccessor_impl() {
-            
-        }
-        
-        void send() override {
-            myQueue.push(UserType());
-        }
-
-        void doReadTransfer() override {
-            myQueue.pop_wait(buffer);
-        }
-        void doPostRead() override {
-        //       buffer_2D[0][0] = buffer;
-        }
-
-        cppext::future_queue<UserType> myQueue;
-        UserType buffer;
-        size_t interruptNum;
-        
-  };
-  
+    
 
   /** A class to provide the uio device functionality."
    *
@@ -68,13 +39,15 @@ namespace ChimeraTK {
     //std::atomic<bool> stopInnterruptLoop = {false};
     void interruptWaitingLoop();
     
+    template<typename UserType> friend struct InterruptWaitingAccessor_impl;
+    
 
     /** constructor called through createInstance to create device object */
 
    public:
     UioBackend(std::string deviceName, std::string mapFileName = "");
     virtual ~UioBackend();
-    
+        
     void open() override;
     void close() override;
 
@@ -100,6 +73,38 @@ namespace ChimeraTK {
         const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags);
  
   };
+  
+  template<typename UserType> 
+  struct InterruptWaitingAccessor_impl : public NumericAddressedBackendRegisterAccessor<UserType,FixedPointConverter,true>, public InterruptWaitingAccessor{                
+
+        InterruptWaitingAccessor_impl(size_t interruptNum, boost::shared_ptr<DeviceBackend> dev, const RegisterPath& registerPathName,
+        size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags): 
+        NumericAddressedBackendRegisterAccessor<UserType,FixedPointConverter,true>(dev, registerPathName, numberOfWords, wordOffsetInRegister, flags),
+        _interruptNum(interruptNum) {
+            UioBackend::accessorLists[_interruptNum].push_back(this);
+        }
+        
+        ~InterruptWaitingAccessor_impl() {
+            UioBackend::accessorLists[_interruptNum].remove(this);
+        }
+        
+        void send() override {
+            _myQueue.push(UserType());
+        }
+
+        void doReadTransfer() override {
+            _myQueue.pop_wait(_buffer);
+        }
+        void doPostRead() override {
+        //       buffer_2D[0][0] = buffer;
+        }
+
+        cppext::future_queue<UserType> _myQueue;
+        UserType _buffer;
+        size_t _interruptNum;
+        
+  };
+
 
   
 } // namespace ChimeraTK

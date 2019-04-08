@@ -10,6 +10,7 @@
 
 //#include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
+#include <sys/poll.h>
 
 // the io constants and struct for the driver
 // FIXME: they should come from the installed driver
@@ -134,26 +135,30 @@ namespace ChimeraTK {
         boost::shared_ptr<RegisterInfo> info = getRegisterInfo("INTERRUPT_WORD");
         auto registerInfo = boost::static_pointer_cast<RegisterInfoMap::RegisterInfo>(info);                
         uint32_t interruptWordAddress = registerInfo->address;
+        
+        struct pollfd poll_fds[1];
+        poll_fds[0].fd = _deviceID;
+        poll_fds[0].events = POLLIN;
 
-        while (_opened) {// only works with detached thread
-            // FIXME: We need an interruption point here, otherwise the blocking read will 
-            // never free the loop if there is no interrupt
-            // This is the blocking read which signals the interrupt
-            int dummy;
-            ::read(_deviceID, &dummy, sizeof(int));
+        while (_opened) {// only works with detached thread                                        
+            int ret = ::poll(poll_fds, 1, 100); //100 ms timeout
+            if ((0 < ret) && (poll_fds[0].revents && POLLIN)){
+                int dummy;
+                ::read(_deviceID, &dummy, sizeof(int));
 
-            read(0 /*bar*/, interruptWordAddress, &interruptWord, sizeof (int32_t));
+                read(0 /*bar*/, interruptWordAddress, &interruptWord, sizeof (int32_t));
             
-            if (!accessorLists.empty()) {                
-                for (auto & accessorList : accessorLists) {
-                    int i = accessorList.first;
-                    uint32_t iMask = 1 < i;
-                    if (iMask & interruptWord & !accessorList.second.empty()) {
-                        for (auto & accessor : accessorList.second) {
-                            accessor->send();
+                if (!accessorLists.empty()) {                
+                    for (auto & accessorList : accessorLists) {
+                        int i = accessorList.first;
+                        uint32_t iMask = 1 < i;
+                        if (iMask & interruptWord & !accessorList.second.empty()) {
+                            for (auto & accessor : accessorList.second) {
+                                accessor->send();
+                            }
                         }
-                    }
-                }                
+                    }                
+                }
             }
         }
     }
@@ -167,7 +172,6 @@ namespace ChimeraTK {
         } 
         else 
         {
-
             NumericAddressedBackend::getRegisterAccessor_impl<UserType>(registerPathName, numberOfWords, wordOffsetInRegister, flags);
         }
     }
@@ -180,13 +184,17 @@ namespace ChimeraTK {
                 boost::shared_ptr<RegisterInfo> info = getRegisterInfo(registerPathName);
                 auto registerInfo = boost::static_pointer_cast<RegisterInfoMap::RegisterInfo>(info);  
                                 
+                if ((registerInfo->registerAccess < RegisterInfoMap::RegisterInfo::Access::I0) || 
+                        (registerInfo->registerAccess < RegisterInfoMap::RegisterInfo::Access::I31)) {
+                    throw ChimeraTK::logic_error("Not an interrupt Register");
+                }
+                
                 // detemine index from RegisterPath
-                int i = (registerInfo->registerAccess) >> 2;
+                int interruptNum = ((registerInfo->registerAccess) >> 2) - 1;
 
                 accessor = boost::shared_ptr<NDRegisterAccessor < UserType >> 
-                        (new InterruptWaitingAccessor_impl<UserType>(i, shared_from_this(), registerPathName, numberOfWords, wordOffsetInRegister, flags));
-
-                accessorLists[i].push_back(accessor);
+                        (new InterruptWaitingAccessor_impl<UserType>(interruptNum, shared_from_this(), registerPathName, numberOfWords, wordOffsetInRegister, flags));
+                
         return accessor;
     }
 
