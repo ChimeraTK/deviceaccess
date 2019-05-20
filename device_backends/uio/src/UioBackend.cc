@@ -147,6 +147,11 @@ namespace ChimeraTK {
                 ::read(_deviceID, &dummy, sizeof(int));
 
                 read(0 /*bar*/, interruptWordAddress, &interruptWord, sizeof (int32_t));
+#ifdef _DEBUG
+                std::cout << "got interrupt" << std::endl;
+#endif
+                //clear the interrupt/s
+                write(0 /*bar*/, interruptWordAddress, &interruptWord, sizeof (int32_t)); 
             
                 if (!accessorLists.empty()) {                
                     for (auto & accessorList : accessorLists) {
