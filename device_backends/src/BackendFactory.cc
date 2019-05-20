@@ -14,6 +14,9 @@
 #ifdef CHIMERATK_HAVE_PCIE_BACKEND
 #  include "PcieBackend.h"
 #endif
+#ifdef CHIMERATK_HAVE_UIO_BACKEND
+#  include "UioBackend.h"
+#endif
 #include "DMapFileParser.h"
 #include "DeviceAccessVersion.h"
 #include "DummyBackend.h"
@@ -138,6 +141,9 @@ namespace ChimeraTK {
   BackendFactory::BackendFactory() {
 #ifdef CHIMERATK_HAVE_PCIE_BACKEND
     registerBackendType("pci", &PcieBackend::createInstance, {"map"});
+#endif
+#ifdef CHIMERATK_HAVE_UIO_BACKEND
+    registerBackendType("uio", &UioBackend::createInstance, {"map"});
 #endif
     registerBackendType("dummy", &DummyBackend::createInstance, {"map"});
     registerBackendType("rebot", &RebotBackend::createInstance, {"ip", "port", "map"});

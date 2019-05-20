@@ -18,7 +18,7 @@ include(cmake/enable_latest_cxx_support.cmake)
 # C++ compiler flags needed to compile this project and against this project
 # The -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR flag is only needed for
 # libxml++ 2.6.
-set(${PROJECT_NAME}_CXX_FLAGS "${${PROJECT_NAME}_CXX_FLAGS} -DFUSION_MAX_MAP_SIZE=30 -DFUSION_MAX_VECTOR_SIZE=30 -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR")
+set(${PROJECT_NAME}_CXX_FLAGS "${${PROJECT_NAME}_CXX_FLAGS} -DFUSION_MAX_MAP_SIZE=30 -DFUSION_MAX_VECTOR_SIZE=30 -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR -D_GLIBCXX_USE_CXX11_ABI=0")
 
 # set C++ compiler flags for compiling this project
 set(CMAKE_CXX_FLAGS "${${PROJECT_NAME}_CXX_FLAGS} -Wall -Wextra -Wshadow -pedantic -Wuninitialized")
@@ -65,6 +65,10 @@ set(subdirs exception util fileparsers device_backends device device_backends/Lo
 if(HAVE_PCIE_BACKEND)
   set(subdirs ${subdirs} device_backends/pcie)
 endif()
+if(HAVE_UIO_BACKEND)
+  add_definitions(-DCHIMERATK_HAVE_UIO_BACKEND)
+  set(subdirs ${subdirs} device_backends/uio)
+endif()
 foreach(subdir ${subdirs})
   aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/${subdir}/src sources)
   set(SOURCE ${SOURCE} ${sources})
@@ -87,7 +91,7 @@ add_library( ${PROJECT_NAME} SHARED ${SOURCE} )
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${${PROJECT_NAME}_FULL_LIBRARY_VERSION} SOVERSION ${${PROJECT_NAME}_SOVERSION})
 link_directories(${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 link_directories(${Boost_LIBRARY_DIRS})
-target_link_libraries(${PROJECT_NAME}  ${LibXML++_LDFLAGS} ${Boost_LIBRARIES} ${LibXML++_LIBRARIES} ${glib_LIBRARIES} ${RT_LIBRARIES} Threads::Threads)
+target_link_libraries(${PROJECT_NAME}  ${LibXML++_LDFLAGS} ${Boost_LIBRARIES} ${LibXML++_LIBRARIES} ${glib_LIBRARIES} ${RT_LIBRARIES} Threads::Threads stdc++fs)
 
 # The make coverage command is only available in debug mode
 IF(CMAKE_BUILD_TYPE STREQUAL "Debug")
