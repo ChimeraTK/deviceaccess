@@ -34,7 +34,8 @@ namespace ChimeraTK {
 
     std::thread _interruptWaitingThread;
     // 32 lists of accessors
-    std::map< int, std::list< boost::shared_ptr<InterruptWaitingAccessor> > > accessorLists;
+    std::map< int, std::list<InterruptWaitingAccessor *> > _accessorLists;
+    
     // do we need this?
     //std::atomic<bool> stopInnterruptLoop = {false};
     void interruptWaitingLoop();
@@ -53,7 +54,7 @@ namespace ChimeraTK {
 
     void read(uint8_t bar, uint32_t address, int32_t* data, size_t sizeInBytes) override;
     void write(uint8_t bar, uint32_t address, int32_t const* data, size_t sizeInBytes) override;
-
+    
     std::string readDeviceInfo() override;
     
     std::string createErrorStringWithErrnoText(std::string const& startText);
@@ -71,21 +72,33 @@ namespace ChimeraTK {
     template<typename UserType>
     boost::shared_ptr<NDRegisterAccessor<UserType>> getInterruptWaitingAccessor(
         const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags);
- 
+
+   protected:
+    void removeAccessor(int interruptNr, InterruptWaitingAccessor * accessor){
+            _accessorLists[interruptNr].remove(accessor);
+    }
+    void addAccessor(int interruptNr, InterruptWaitingAccessor * accessor){
+            _accessorLists[interruptNr].push_back(accessor);
+    }
+    
+    template<typename UserType> friend class InterruptWaitingAccessor_impl;
+
+
   };
   
   template<typename UserType> 
-  struct InterruptWaitingAccessor_impl : public NumericAddressedBackendRegisterAccessor<UserType,FixedPointConverter,true>, public InterruptWaitingAccessor{                
-
-        InterruptWaitingAccessor_impl(size_t interruptNum, boost::shared_ptr<DeviceBackend> dev, const RegisterPath& registerPathName,
+  class InterruptWaitingAccessor_impl : public NumericAddressedBackendRegisterAccessor<UserType,FixedPointConverter,true>, public InterruptWaitingAccessor{                
+  public:
+  InterruptWaitingAccessor_impl(
+        size_t interruptNum, boost::shared_ptr<UioBackend> dev, const RegisterPath& registerPathName,
         size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags): 
         NumericAddressedBackendRegisterAccessor<UserType,FixedPointConverter,true>(dev, registerPathName, numberOfWords, wordOffsetInRegister, flags),
-        _interruptNum(interruptNum) {
-            UioBackend::accessorLists[_interruptNum].push_back(this);
+                _backend(dev), _interruptNum(interruptNum) {
+                _backend->addAccessor(_interruptNum,this);
         }
         
         ~InterruptWaitingAccessor_impl() {
-            UioBackend::accessorLists[_interruptNum].remove(this);
+            _backend->removeAccessor(_interruptNum, this);
         }
         
         void send() override {
@@ -96,9 +109,11 @@ namespace ChimeraTK {
             _myQueue.pop_wait(_buffer);
         }
         void doPostRead() override {
-        //       buffer_2D[0][0] = buffer;
+            NDRegisterAccessor<UserType>::buffer_2D[0][0] = _buffer;
         }
 
+        boost::shared_ptr<UioBackend> _backend;
+        //        std::map< int, std::list< boost::shared_ptr<InterruptWaitingAccessor> > > _accessorLists;
         cppext::future_queue<UserType> _myQueue;
         UserType _buffer;
         size_t _interruptNum;
