@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <boost/filesystem.hpp>
 #include <fstream>
 #include <sys/mman.h>
 
@@ -18,9 +17,8 @@
 
 namespace ChimeraTK {
 
-    UioBackend::UioBackend(std::string deviceName, std::string mapFileName) : NumericAddressedBackend(mapFileName),
-    _deviceID(0), _deviceMemBase(nullptr), _deviceMemSize(0), _deviceName(deviceName), _deviceNodeName(std::string()),
-    _deviceSysfsPathName(std::string()) {
+    UioBackend::UioBackend(std::string deviceName, size_t memSize, std::string mapFileName) : NumericAddressedBackend(mapFileName),
+    _deviceID(0), _deviceMemBase(nullptr), _deviceMemSize(memSize), _deviceNodeName(std::string("/dev/" + deviceName)) {
         FILL_VIRTUAL_FUNCTION_TEMPLATE_VTABLE_STANDALONE(getRegisterAccessor_impl, 4);
     }
 
@@ -28,27 +26,7 @@ namespace ChimeraTK {
         close();
     }
 
-    void UioBackend::UioFindByName() {
-        std::string name;
-
-        std::string sysPath = "/sys/class/uio/";
-        for (const auto & entry : boost::filesystem::directory_iterator(sysPath)) {
-            std::ifstream file(entry.path().string() + "/name");
-            std::getline(file, name);
-            if (name == _deviceName) {
-                _deviceSysfsPathName = entry.path().string();
-                _deviceNodeName = "/dev/" + _deviceSysfsPathName.erase(_deviceSysfsPathName.find(sysPath), sysPath.size());
-                return;
-            }
-        }
-        throw ChimeraTK::logic_error("Device not found");
-    }
-
     void UioBackend::UioMMap() {
-        std::string mem_size;
-        std::ifstream file(_deviceSysfsPathName + "/maps/map0/size");
-        std::getline(file, mem_size);
-        _deviceMemSize = std::stoul(mem_size, NULL, 0);
         if (MAP_FAILED == (_deviceMemBase = mmap(NULL, _deviceMemSize, PROT_READ | PROT_WRITE, MAP_SHARED, _deviceID, 0))) {
             ::close(_deviceID);
             throw ChimeraTK::runtime_error(createErrorStringWithErrnoText("Cannot allocate Memory: "));
@@ -67,14 +45,12 @@ namespace ChimeraTK {
         if (_opened) {
             throw ChimeraTK::logic_error("Device already has been opened");
         }
-        UioFindByName();
-#ifdef _DEBUG
-        std::cout << "uio found by name " << _deviceNodeName << std::endl;
-#endif
+
         _deviceID = ::open(_deviceNodeName.c_str(), O_RDWR);
         if (_deviceID < 0) {
             throw ChimeraTK::runtime_error(createErrorStringWithErrnoText("Cannot open device: "));
         }
+
         UioMMap();
 #ifdef _DEBUG
         std::cout << "uio mmaped " << std::endl;
@@ -138,8 +114,11 @@ namespace ChimeraTK {
         if (address.size() == 0) {
             throw ChimeraTK::logic_error("Device Name not specified.");
         }
+        if (parameters["memSize"].size() == 0) {
+            throw ChimeraTK::logic_error("Device Memory Size not specified.");
+        }       
 
-        return boost::shared_ptr<DeviceBackend>(new UioBackend(address, parameters["map"]));
+        return boost::shared_ptr<DeviceBackend>(new UioBackend(address, std::stoul(parameters["memSize"]), parameters["map"]));
     }
 
     void UioBackend::interruptWaitingLoop() {

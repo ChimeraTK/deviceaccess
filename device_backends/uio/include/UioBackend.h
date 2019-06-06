@@ -24,9 +24,7 @@ namespace ChimeraTK {
     int _deviceID;
     void * _deviceMemBase;
     size_t _deviceMemSize;
-    std::string _deviceName;
     std::string _deviceNodeName;
-    std::string _deviceSysfsPathName;
     
     void UioFindByName();
     void UioMMap();
@@ -46,7 +44,7 @@ namespace ChimeraTK {
     /** constructor called through createInstance to create device object */
 
    public:
-    UioBackend(std::string deviceName, std::string mapFileName = "");
+    UioBackend(std::string deviceName, size_t memSize, std::string mapFileName = "");
     virtual ~UioBackend();
         
     void open() override;
@@ -59,8 +57,6 @@ namespace ChimeraTK {
     
     std::string createErrorStringWithErrnoText(std::string const& startText);
 
-    /*Host or parameters (at least for now) are just place holders as uiodevice
-     * does not use them*/
     static boost::shared_ptr<DeviceBackend> createInstance(std::string address,
         std::map<std::string, std::string>
             parameters);
