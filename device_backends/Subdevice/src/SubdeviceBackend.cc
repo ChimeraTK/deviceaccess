@@ -108,16 +108,16 @@ namespace ChimeraTK {
       if(parameters["address"].empty()) {
         throw ChimeraTK::logic_error("SubdeviceBackend: Target address register "
                                      "name must be specified in the device "
-                                     "descriptor for type '3regs'.");
+                                     "descriptor for type '2regs'.");
       }
       if(parameters["data"].empty()) {
         throw ChimeraTK::logic_error("SubdeviceBackend: Target data register "
                                      "name must be specified in the device "
-                                     "descriptor for type '3regs'.");
+                                     "descriptor for type '2regs'.");
       }
       if(parameters["sleep"].empty()) {
         throw ChimeraTK::logic_error("SubdeviceBackend: Target sleep time must be specified in the device "
-                                     "descriptor for type '3regs'.");
+                                     "descriptor for type '2regs'.");
       }
       targetAddress = parameters["address"];
       targetData = parameters["data"];
@@ -145,10 +145,17 @@ namespace ChimeraTK {
 
   /*******************************************************************************************************************/
 
-  void SubdeviceBackend::open() {
-    // open target backend
+  void SubdeviceBackend::obtainTargetBackend() {
+    if(targetDevice != nullptr) return;
     BackendFactory& factoryInstance = BackendFactory::getInstance();
     targetDevice = factoryInstance.createBackend(targetAlias);
+  }
+
+  /*******************************************************************************************************************/
+
+  void SubdeviceBackend::open() {
+    obtainTargetBackend();
+    // open target backend
     if(!targetDevice->isOpen()) { // createBackend may return an already opened
                                   // instance for some backends
       targetDevice->open();
@@ -159,6 +166,7 @@ namespace ChimeraTK {
   /*******************************************************************************************************************/
 
   void SubdeviceBackend::close() {
+    obtainTargetBackend();
     targetDevice->close();
     _opened = false;
   }
@@ -177,9 +185,8 @@ namespace ChimeraTK {
     void doPostRead() override {
       _target->postRead();
       for(size_t i = 0; i < this->buffer_2D.size(); ++i) {
-        for(size_t j = 0; j < this->buffer_2D[i].size(); ++j) {
-          buffer_2D[i][j] = _fixedPointConverter.toCooked<UserType>(_target->accessChannel(i)[j]);
-        }
+        _fixedPointConverter.template vectorToCooked<UserType>(
+            _target->accessChannel(i).begin(), _target->accessChannel(i).end(), buffer_2D[i].begin());
       }
     }
 
@@ -222,7 +229,12 @@ namespace ChimeraTK {
 
     template<typename COOKED_TYPE>
     COOKED_TYPE getAsCooked_impl(unsigned int channel, unsigned int sample) {
-      return _fixedPointConverter.toCooked<COOKED_TYPE>(buffer_2D[channel][sample]);
+      std::vector<int32_t> rawVector(1);
+      std::vector<COOKED_TYPE> cookedVector(1);
+      rawVector[0] = buffer_2D[channel][sample];
+      _fixedPointConverter.template vectorToCooked<COOKED_TYPE>(
+          rawVector.begin(), rawVector.end(), cookedVector.begin());
+      return cookedVector[0];
     }
 
     template<typename COOKED_TYPE>
@@ -253,10 +265,8 @@ namespace ChimeraTK {
 
   template<typename UserType>
   boost::shared_ptr<NDRegisterAccessor<UserType>> SubdeviceBackend::getRegisterAccessor_impl(
-      const RegisterPath& registerPathName,
-      size_t numberOfWords,
-      size_t wordOffsetInRegister,
-      AccessModeFlags flags) {
+      const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags) {
+    obtainTargetBackend();
     if(type == Type::area) {
       return getRegisterAccessor_area<UserType>(registerPathName, numberOfWords, wordOffsetInRegister, flags);
     }
@@ -270,10 +280,7 @@ namespace ChimeraTK {
 
   template<typename UserType>
   boost::shared_ptr<NDRegisterAccessor<UserType>> SubdeviceBackend::getRegisterAccessor_area(
-      const RegisterPath& registerPathName,
-      size_t numberOfWords,
-      size_t wordOffsetInRegister,
-      AccessModeFlags flags) {
+      const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags) {
     assert(type == Type::area);
 
     // obtain register info

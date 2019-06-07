@@ -9,13 +9,193 @@
 #ifndef CHIMERA_TK_SUPPORTED_USER_TYPES_H
 #define CHIMERA_TK_SUPPORTED_USER_TYPES_H
 
+#include <iterator>
+#include <sstream>
 #include <boost/fusion/algorithm.hpp>
 #include <boost/fusion/container/map.hpp>
+#include <boost/numeric/conversion/cast.hpp>
 
 namespace ChimeraTK {
 
-  /** Map of UserType to value of the UserType. Used e.g. by the
-   * FixedPointConverter to store coefficients etc. in
+  /********************************************************************************************************************/
+
+  /** Helper classes for the conversion functions below */
+  namespace detail {
+    template<typename UserType, typename NUMERIC>
+    struct numericToUserType_impl {
+      static UserType impl(NUMERIC value);
+    };
+
+    template<typename NUMERIC>
+    struct numericToUserType_impl<std::string, NUMERIC> {
+      static std::string impl(NUMERIC value);
+    };
+
+    template<typename NUMERIC>
+    struct numericToUserType_impl<double, NUMERIC> {
+      static double impl(NUMERIC value);
+    };
+
+    template<typename NUMERIC>
+    struct numericToUserType_impl<float, NUMERIC> {
+      static float impl(NUMERIC value);
+    };
+
+    template<typename UserType, typename NUMERIC>
+    struct userTypeToNumeric_impl {
+      static NUMERIC impl(UserType value);
+    };
+
+    template<typename NUMERIC>
+    struct userTypeToNumeric_impl<std::string, NUMERIC> {
+      static NUMERIC impl(const std::string& value);
+    };
+
+    template<typename UserTypeReturn, typename UserTypeParameter>
+    struct userTypeToUserType_impl {
+      static UserTypeReturn impl(UserTypeParameter value);
+    };
+
+    template<>
+    struct userTypeToUserType_impl<std::string, std::string> {
+      static std::string impl(std::string value) { return value; }
+    };
+
+    template<typename UserTypeReturn>
+    struct userTypeToUserType_impl<UserTypeReturn, std::string> {
+      static UserTypeReturn impl(std::string value);
+    };
+
+    template<class S>
+    struct Round {
+      static S nearbyint(S s) { return std::round(s); }
+      typedef boost::mpl::integral_c<std::float_round_style, std::round_to_nearest> round_style;
+    };
+  } // namespace detail
+
+  /********************************************************************************************************************/
+
+  /** Helper function to convert numeric data into any UserType (even if it is a string etc.). The conversion is done
+   *  with proper rounding and range checking. It will throw boost::numeric::positive_overflow resp.
+   *  boost::numeric::negative_overflow if the data is out of range. */
+  template<typename UserType, typename NUMERIC>
+  UserType numericToUserType(NUMERIC value) {
+    return detail::numericToUserType_impl<UserType, NUMERIC>::impl(value);
+  }
+
+  /********************************************************************************************************************/
+
+  /** Helper function to convert numeric data into any UserType (even if it is a string etc.). The conversion is done
+   *  with proper rounding and range checking. It will throw boost::numeric::positive_overflow resp.
+   *  boost::numeric::negative_overflow if the data is out of range. */
+  template<typename NUMERIC, typename UserType>
+  NUMERIC userTypeToNumeric(UserType value) {
+    return detail::userTypeToNumeric_impl<UserType, NUMERIC>::impl(value);
+  }
+
+  /********************************************************************************************************************/
+
+  template<typename UserType, typename NUMERIC>
+  UserType detail::numericToUserType_impl<UserType, NUMERIC>::impl(NUMERIC value) {
+    typedef boost::numeric::converter<UserType, NUMERIC, boost::numeric::conversion_traits<UserType, NUMERIC>,
+        boost::numeric::def_overflow_handler, Round<NUMERIC>>
+        converter;
+    return converter::convert(value);
+  }
+
+  /********************************************************************************************************************/
+
+  template<typename UserType, typename NUMERIC>
+  NUMERIC detail::userTypeToNumeric_impl<UserType, NUMERIC>::impl(UserType value) {
+    typedef boost::numeric::converter<NUMERIC, UserType, boost::numeric::conversion_traits<NUMERIC, UserType>,
+        boost::numeric::def_overflow_handler, Round<UserType>>
+        converter;
+    return converter::convert(value);
+  }
+
+  /********************************************************************************************************************/
+
+  template<typename NUMERIC>
+  inline double detail::numericToUserType_impl<double, NUMERIC>::impl(NUMERIC value) {
+    return static_cast<double>(value);
+  }
+
+  /********************************************************************************************************************/
+
+  template<typename NUMERIC>
+  inline float detail::numericToUserType_impl<float, NUMERIC>::impl(NUMERIC value) {
+    return static_cast<float>(value);
+  }
+
+  /********************************************************************************************************************/
+
+  template<typename NUMERIC>
+  std::string detail::numericToUserType_impl<std::string, NUMERIC>::impl(NUMERIC value) {
+    return std::to_string(value);
+  }
+
+  /********************************************************************************************************************/
+
+  template<typename NUMERIC>
+  NUMERIC detail::userTypeToNumeric_impl<std::string, NUMERIC>::impl(const std::string& value) {
+    NUMERIC v;
+    std::stringstream ss(value);
+    ss >> v;
+    return v;
+  }
+
+  /********************************************************************************************************************/
+
+  /** Helper function to convert any UserType data into any other UserType (even if it is a string etc.). The conversion
+   *  is done with proper rounding and range checking for numeric types. It will throw boost::numeric::positive_overflow
+   *  resp. boost::numeric::negative_overflow if the data is out of range. */
+  template<typename UserTypeReturn, typename UserTypeParameter>
+  UserTypeReturn userTypeToUserType(UserTypeParameter value) {
+    return detail::userTypeToUserType_impl<UserTypeReturn, UserTypeParameter>::impl(value);
+  }
+
+  /********************************************************************************************************************/
+
+  template<typename UserTypeReturn, typename UserTypeParameter>
+  inline UserTypeReturn detail::userTypeToUserType_impl<UserTypeReturn, UserTypeParameter>::impl(
+      UserTypeParameter value) {
+    return numericToUserType<UserTypeReturn>(value);
+  }
+
+  /********************************************************************************************************************/
+
+  template<typename UserTypeReturn>
+  inline UserTypeReturn detail::userTypeToUserType_impl<UserTypeReturn, std::string>::impl(std::string value) {
+    return userTypeToNumeric<UserTypeReturn>(value);
+  }
+
+  /********************************************************************************************************************/
+
+  /** A random-access iterator which can be created from raw C pointers */
+  template<typename DATA_TYPE>
+  struct raw_iterator : std::iterator<std::random_access_iterator_tag, DATA_TYPE> {
+    explicit raw_iterator(DATA_TYPE* begin) : _ptr(begin) {}
+    raw_iterator& operator++() {
+      ++_ptr;
+      return *this;
+    }
+    raw_iterator operator++(int) {
+      raw_iterator retval = *this;
+      ++(*this);
+      return retval;
+    }
+    bool operator==(raw_iterator other) const { return _ptr == other._ptr; }
+    bool operator!=(raw_iterator other) const { return !(*this == other); }
+    size_t operator-(raw_iterator other) const { return _ptr - other._ptr; }
+    DATA_TYPE& operator*() const { return *_ptr; }
+
+   private:
+    DATA_TYPE* _ptr;
+  };
+
+  /********************************************************************************************************************/
+
+  /** Map of UserType to value of the UserType. Used e.g. by the FixedPointConverter to store coefficients etc. in
    *  dependence of the UserType. */
   typedef boost::fusion::map<boost::fusion::pair<int8_t, int8_t>, boost::fusion::pair<uint8_t, uint8_t>,
       boost::fusion::pair<int16_t, int16_t>, boost::fusion::pair<uint16_t, uint16_t>,
@@ -23,6 +203,19 @@ namespace ChimeraTK {
       boost::fusion::pair<int64_t, int64_t>, boost::fusion::pair<uint64_t, uint64_t>, boost::fusion::pair<float, float>,
       boost::fusion::pair<double, double>, boost::fusion::pair<std::string, std::string>>
       userTypeMap;
+
+  /** Map of UserType to a value of a single type (same for evey user type) */
+  template<typename TargetType>
+  class FixedUserTypeMap {
+   public:
+    boost::fusion::map<boost::fusion::pair<int8_t, TargetType>, boost::fusion::pair<uint8_t, TargetType>,
+        boost::fusion::pair<int16_t, TargetType>, boost::fusion::pair<uint16_t, TargetType>,
+        boost::fusion::pair<int32_t, TargetType>, boost::fusion::pair<uint32_t, TargetType>,
+        boost::fusion::pair<int64_t, TargetType>, boost::fusion::pair<uint64_t, TargetType>,
+        boost::fusion::pair<float, TargetType>, boost::fusion::pair<double, TargetType>,
+        boost::fusion::pair<std::string, TargetType>>
+        table;
+  };
 
   /** Map of UserType to a class template with the UserType as template argument.
    * Used e.g. by the VirtualFunctionTemplate macros to implement the vtable. */
@@ -57,8 +250,7 @@ namespace ChimeraTK {
   extern template class TemplateClass<uint64_t>;                                                                       \
   extern template class TemplateClass<float>;                                                                          \
   extern template class TemplateClass<double>;                                                                         \
-  extern template class TemplateClass<std::string> // the last semicolon is
-                                                   // added by the user
+  extern template class TemplateClass<std::string> // the last semicolon is added by the user
 
 #define INSTANTIATE_TEMPLATE_FOR_CHIMERATK_USER_TYPES(TemplateClass)                                                   \
   template class TemplateClass<int8_t>;                                                                                \
@@ -71,8 +263,7 @@ namespace ChimeraTK {
   template class TemplateClass<uint64_t>;                                                                              \
   template class TemplateClass<float>;                                                                                 \
   template class TemplateClass<double>;                                                                                \
-  template class TemplateClass<std::string> // the last semicolon is added by
-                                            // the user
+  template class TemplateClass<std::string> // the last semicolon is added by the user
 
 /** Macro to declare a template class with multiple template parameters for all
  *  supported user types. The variadic arguments are the additional template
@@ -207,6 +398,116 @@ namespace ChimeraTK {
      */
     inline DataType(TheType const& value = none) : _value(value) {}
 
+    /** Construct DataType from std::type_info. If the type is not known, 'none' is returned. */
+    inline DataType(const std::type_info& info) {
+      if(info == typeid(int8_t)) {
+        _value = int8;
+      }
+      else if(info == typeid(uint8_t)) {
+        _value = uint8;
+      }
+      else if(info == typeid(int16_t)) {
+        _value = int16;
+      }
+      else if(info == typeid(uint16_t)) {
+        _value = uint16;
+      }
+      else if(info == typeid(int32_t)) {
+        _value = int32;
+      }
+      else if(info == typeid(uint32_t)) {
+        _value = uint32;
+      }
+      else if(info == typeid(int64_t)) {
+        _value = int64;
+      }
+      else if(info == typeid(uint64_t)) {
+        _value = uint64;
+      }
+      else if(info == typeid(float)) {
+        _value = float32;
+      }
+      else if(info == typeid(double)) {
+        _value = float64;
+      }
+      else if(info == typeid(std::string)) {
+        _value = string;
+      }
+      else {
+        _value = none;
+      }
+    }
+
+    /** Construct DataType from std::string. */
+    inline DataType(const std::string& typeName) {
+      if(typeName == "int8") {
+        _value = int8;
+      }
+      else if(typeName == "uint8") {
+        _value = uint8;
+      }
+      else if(typeName == "int16") {
+        _value = int16;
+      }
+      else if(typeName == "uint16") {
+        _value = uint16;
+      }
+      else if(typeName == "int32") {
+        _value = int32;
+      }
+      else if(typeName == "uint32") {
+        _value = uint32;
+      }
+      else if(typeName == "int64") {
+        _value = int64;
+      }
+      else if(typeName == "uint64") {
+        _value = uint64;
+      }
+      else if(typeName == "float32") {
+        _value = float32;
+      }
+      else if(typeName == "float64") {
+        _value = float64;
+      }
+      else if(typeName == "string") {
+        _value = string;
+      }
+      else {
+        _value = none;
+      }
+    }
+
+    /** Return string representation of the data type */
+    inline bool getAsString() const {
+      switch(_value) {
+        case int8:
+          return "int8";
+        case uint8:
+          return "uint8";
+        case int16:
+          return "int16";
+        case uint16:
+          return "uint16";
+        case int32:
+          return "int32";
+        case uint32:
+          return "uint32";
+        case int64:
+          return "in64";
+        case uint64:
+          return "uin64";
+        case float32:
+          return "float32";
+        case float64:
+          return "float64";
+        case string:
+          return "string";
+        default:
+          return false;
+      }
+    }
+
    protected:
     TheType _value;
   };
@@ -298,48 +599,37 @@ namespace ChimeraTK {
   void callForType(const DataType& type, LAMBDATYPE lambda) {
     switch(DataType::TheType(type)) {
       case DataType::int8: {
-        int8_t x;
-        lambda(x);
+        lambda(int8_t());
       } break;
       case DataType::uint8: {
-        uint8_t x;
-        lambda(x);
+        lambda(uint8_t());
       } break;
       case DataType::int16: {
-        int16_t x;
-        lambda(x);
+        lambda(int16_t());
       } break;
       case DataType::uint16: {
-        uint16_t x;
-        lambda(x);
+        lambda(uint16_t());
       } break;
       case DataType::int32: {
-        int32_t x;
-        lambda(x);
+        lambda(int32_t());
       } break;
       case DataType::uint32: {
-        uint32_t x;
-        lambda(x);
+        lambda(uint32_t());
       } break;
       case DataType::int64: {
-        int64_t x;
-        lambda(x);
+        lambda(int64_t());
       } break;
       case DataType::uint64: {
-        uint64_t x;
-        lambda(x);
+        lambda(uint64_t());
       } break;
       case DataType::float32: {
-        float x;
-        lambda(x);
+        lambda(float());
       } break;
       case DataType::float64: {
-        double x;
-        lambda(x);
+        lambda(double());
       } break;
       case DataType::string: {
-        std::string x;
-        lambda(x);
+        lambda(std::string());
       } break;
       case DataType::none:
         class myBadCast : public std::bad_cast {

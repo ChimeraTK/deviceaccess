@@ -48,6 +48,35 @@ namespace ChimeraTK {
    */
   class Device {
    public:
+
+    /** Create device instance without associating a backend yet.
+     *
+     * A backend has to be explicitly associated using open method which
+     * has the alias or CDD as argument.
+     *
+     * Usage:
+     * \code
+     *   Device d();
+     *   d.open("(pci:pciedevs5?map=mps_v00.07.map)");
+     * \endcode
+     */
+    Device()=default;
+
+    /**
+     * \brief Initialize device and accociate a backend.
+     *
+     * The device is not opened yet.
+     *
+     * Usage:
+     * \code
+     *   Device d("(pci:pciedevs5?map=mps_v00.07.map)");
+     *   d.open();
+     * \endcode
+     *
+     * \param aliasName The ChimeraTK device descriptor for the device.
+     */
+    Device(const std::string &aliasName);
+
     /** Destructor */
     virtual ~Device();
 

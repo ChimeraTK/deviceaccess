@@ -8,16 +8,24 @@
 #ifndef CHIMERA_TK_LNM_BACKEND_REGISTER_INFO_H
 #define CHIMERA_TK_LNM_BACKEND_REGISTER_INFO_H
 
+#include <mutex>
+
+#include <boost/shared_ptr.hpp>
+
 #include "ForwardDeclarations.h"
 #include "RegisterInfo.h"
 
 namespace ChimeraTK {
 
+  namespace LNMBackend {
+    class AccessorPluginBase;
+  }
+
   /** RegisterInfo structure for the LogicalNameMappingBackend */
   class LNMBackendRegisterInfo : public RegisterInfo {
    public:
     /** Potential target types */
-    enum TargetType { INVALID, REGISTER, CHANNEL, BIT, INT_CONSTANT, INT_VARIABLE };
+    enum TargetType { INVALID, REGISTER, CHANNEL, BIT, CONSTANT, VARIABLE };
 
     /** constuctor: initialise values */
     LNMBackendRegisterInfo() : targetType(TargetType::INVALID), supportedFlags({}) {}
@@ -68,8 +76,19 @@ namespace ChimeraTK {
     /** The number of channels of the logical register */
     unsigned int nChannels;
 
-    /** The integer value of a INT_CONSTANT or INT_VARIABLE */
-    std::vector<int> value_int;
+    /** Data type of CONSTANT or VARIABLE type. */
+    DataType valueType;
+
+    /** Hold values of CONSTANT or VARIABLE types in a type-dependent table. Only the entry matching the valueType
+     *  is actually valid.
+     *  Note: We cannot directly put the std::vector in a TemplateUserTypeMap, since it has more than one template
+     *  arguments (with defaults). */
+    template<typename T>
+    using myVector = std::vector<T>;
+    TemplateUserTypeMap<myVector> valueTable;
+
+    /** Mutex one needs to hold while accessing valueTable */
+    std::mutex valueTable_mutex;
 
     /** Flag if the register is readable. Might be derived from the target
      * register */
@@ -82,9 +101,8 @@ namespace ChimeraTK {
     /** Supported AccessMode flags. Might be derived from the target register */
     AccessModeFlags supportedFlags;
 
-   protected:
-    friend class LogicalNameMapParser;
-    friend class LogicalNameMappingBackend;
+    /** List of accessor plugins enabled for this register */
+    std::vector<boost::shared_ptr<LNMBackend::AccessorPluginBase>> plugins;
 
     DataDescriptor _dataDescriptor;
   };

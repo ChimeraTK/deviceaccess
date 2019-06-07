@@ -2,29 +2,17 @@ cmake_minimum_required (VERSION 3.0.2)
 Project(ChimeraTK-DeviceAccess)
 
 set(${PROJECT_NAME}_MAJOR_VERSION 01)
-set(${PROJECT_NAME}_MINOR_VERSION 01)
-set(${PROJECT_NAME}_PATCH_VERSION 01)
+set(${PROJECT_NAME}_MINOR_VERSION 04)
+set(${PROJECT_NAME}_PATCH_VERSION 00)
 include(cmake/set_version_numbers.cmake)
-
-# Set the build type to Release if none is specified
-# Force it into Release if "None" is specified (needed to overrule dkpg_buildpackage)
-if(NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "None")
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
-endif()
-
-# add support for latest C++ standard to compiler flags
-include(cmake/enable_latest_cxx_support.cmake)
 
 # C++ compiler flags needed to compile this project and against this project
 # The -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR flag is only needed for
 # libxml++ 2.6.
 set(${PROJECT_NAME}_CXX_FLAGS "${${PROJECT_NAME}_CXX_FLAGS} -DFUSION_MAX_MAP_SIZE=30 -DFUSION_MAX_VECTOR_SIZE=30 -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR -D_GLIBCXX_USE_CXX11_ABI=0")
 
-# set C++ compiler flags for compiling this project
-set(CMAKE_CXX_FLAGS "${${PROJECT_NAME}_CXX_FLAGS} -Wall -Wextra -Wshadow -pedantic -Wuninitialized")
-
-# use -DCMAKE_BUILD_TYPE=Debug in your cmake command to turn on the coverage option
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 --coverage")
+include(cmake/set_default_build_to_release.cmake)
+include(cmake/set_default_flags.cmake)
 
 # use -DSUPPRESS_AUTO_DOC_BUILD=true to suppress to create the doc with every
 # build. The 'make doc' target will still exist
@@ -38,7 +26,8 @@ endif(SUPPRESS_AUTO_DOC_BUILD)
 # add dependencies
 include(cmake/add_dependency.cmake)
 add_dependency(Boost COMPONENTS thread system chrono filesystem REQUIRED)
-add_dependency(ChimeraTK-cppext REQUIRED 01.01)
+add_dependency(ChimeraTK-cppext REQUIRED 01.02)
+add_dependency(exprtk REQUIRED 01.00)
 
 FIND_PACKAGE(PkgConfig REQUIRED)
 set(LIBXML++_VERSION "libxml++-2.6")

@@ -5,6 +5,7 @@ using namespace boost::unit_test_framework;
 
 #include "BufferingRegisterAccessor.h"
 #include "Device.h"
+#include "TransferGroup.h"
 
 using namespace ChimeraTK;
 
@@ -393,8 +394,7 @@ BOOST_AUTO_TEST_CASE(testRegisterAccessorForRegister) {
   // reading via const_reverse_iterator
   index = 1024;
   for(ChimeraTK::BufferingRegisterAccessor<int32_t>::const_reverse_iterator it = acc_const.rbegin();
-      it != acc_const.rend();
-      ++it) {
+      it != acc_const.rend(); ++it) {
     --index;
     BOOST_CHECK(*it == -876543210 + 42 * index);
   }
@@ -467,8 +467,7 @@ BOOST_AUTO_TEST_CASE(testRegisterAccessorForRange) {
   // reading via const_reverse_iterator
   index = 20;
   for(ChimeraTK::BufferingRegisterAccessor<int32_t>::const_reverse_iterator it = acc_const.rbegin();
-      it != acc_const.rend();
-      ++it) {
+      it != acc_const.rend(); ++it) {
     --index;
     BOOST_CHECK(*it == -876543210 + 42 * index);
   }
@@ -746,6 +745,123 @@ BOOST_AUTO_TEST_CASE(testRegisterAccessorForBit) {
   bitField.read();
   BOOST_CHECK_EQUAL(static_cast<int>(bitField), 14);
 
+  // Test with TransferGroup
+  TransferGroup group;
+  group.addAccessor(bit0);
+  group.addAccessor(bit1);
+  group.addAccessor(bit2);
+  group.addAccessor(bit3);
+
+  bitField = 0;
+  bitField.write();
+
+  group.read();
+  BOOST_CHECK_EQUAL(static_cast<uint8_t>(bit0), 0);
+  BOOST_CHECK_EQUAL(static_cast<uint16_t>(bit1), 0);
+  BOOST_CHECK_EQUAL(static_cast<int32_t>(bit2), 0);
+  BOOST_CHECK_EQUAL(static_cast<std::string>(bit3), "0");
+
+  bitField = 1;
+  bitField.write();
+
+  group.read();
+  BOOST_CHECK_EQUAL(static_cast<uint8_t>(bit0), 1);
+  BOOST_CHECK_EQUAL(static_cast<uint16_t>(bit1), 0);
+  BOOST_CHECK_EQUAL(static_cast<int32_t>(bit2), 0);
+  BOOST_CHECK_EQUAL(static_cast<std::string>(bit3), "0");
+
+  bitField = 2;
+  bitField.write();
+
+  group.read();
+  BOOST_CHECK_EQUAL(static_cast<uint8_t>(bit0), 0);
+  BOOST_CHECK_EQUAL(static_cast<uint16_t>(bit1), 1);
+  BOOST_CHECK_EQUAL(static_cast<int32_t>(bit2), 0);
+  BOOST_CHECK_EQUAL(static_cast<std::string>(bit3), "0");
+
+  bitField = 3;
+  bitField.write();
+
+  group.read();
+  BOOST_CHECK_EQUAL(static_cast<uint8_t>(bit0), 1);
+  BOOST_CHECK_EQUAL(static_cast<uint16_t>(bit1), 1);
+  BOOST_CHECK_EQUAL(static_cast<int32_t>(bit2), 0);
+  BOOST_CHECK_EQUAL(static_cast<std::string>(bit3), "0");
+
+  bitField = 4;
+  bitField.write();
+
+  group.read();
+  BOOST_CHECK_EQUAL(static_cast<uint8_t>(bit0), 0);
+  BOOST_CHECK_EQUAL(static_cast<uint16_t>(bit1), 0);
+  BOOST_CHECK_EQUAL(static_cast<int32_t>(bit2), 1);
+  BOOST_CHECK_EQUAL(static_cast<std::string>(bit3), "0");
+
+  bitField = 8;
+  bitField.write();
+
+  group.read();
+  BOOST_CHECK_EQUAL(static_cast<uint8_t>(bit0), 0);
+  BOOST_CHECK_EQUAL(static_cast<uint16_t>(bit1), 0);
+  BOOST_CHECK_EQUAL(static_cast<int32_t>(bit2), 0);
+  BOOST_CHECK_EQUAL(static_cast<std::string>(bit3), "1");
+
+  bitField = 15;
+  bitField.write();
+
+  group.read();
+  BOOST_CHECK_EQUAL(static_cast<uint8_t>(bit0), 1);
+  BOOST_CHECK_EQUAL(static_cast<uint16_t>(bit1), 1);
+  BOOST_CHECK_EQUAL(static_cast<int32_t>(bit2), 1);
+  BOOST_CHECK_EQUAL(static_cast<std::string>(bit3), "1");
+
+  bitField = 16;
+  bitField.write();
+
+  group.read();
+  BOOST_CHECK_EQUAL(static_cast<uint8_t>(bit0), 0);
+  BOOST_CHECK_EQUAL(static_cast<uint16_t>(bit1), 0);
+  BOOST_CHECK_EQUAL(static_cast<int32_t>(bit2), 0);
+  BOOST_CHECK_EQUAL(static_cast<std::string>(bit3), "0");
+
+  bitField = 17;
+  bitField.write();
+
+  group.read();
+  BOOST_CHECK_EQUAL(static_cast<uint8_t>(bit0), 1);
+  BOOST_CHECK_EQUAL(static_cast<uint16_t>(bit1), 0);
+  BOOST_CHECK_EQUAL(static_cast<int32_t>(bit2), 0);
+  BOOST_CHECK_EQUAL(static_cast<std::string>(bit3), "0");
+
+  bitField = 1;
+  bitField.write();
+
+  group.read();
+  BOOST_CHECK_EQUAL(static_cast<uint8_t>(bit0), 1);
+  BOOST_CHECK_EQUAL(static_cast<uint16_t>(bit1), 0);
+  BOOST_CHECK_EQUAL(static_cast<int32_t>(bit2), 0);
+  BOOST_CHECK_EQUAL(static_cast<std::string>(bit3), "0");
+
+  bit2 = 1;
+  group.write();
+  bitField.read();
+  BOOST_CHECK_EQUAL(static_cast<int>(bitField), 5);
+
+  bit1 = 1;
+  group.write();
+  bitField.read();
+  BOOST_CHECK_EQUAL(static_cast<int>(bitField), 7);
+
+  bit0 = 0;
+  group.write();
+  bitField.read();
+  BOOST_CHECK_EQUAL(static_cast<int>(bitField), 6);
+
+  bit3 = "1";
+  group.write();
+  bitField.read();
+  BOOST_CHECK_EQUAL(static_cast<int>(bitField), 14);
+
   device.close();
 }
 
@@ -769,6 +885,90 @@ BOOST_AUTO_TEST_CASE(testParameters) {
   device.open("PARAMS0");
 
   BOOST_CHECK_EQUAL(device.read<int>("SingleWordWithParams"), 42);
+}
+
+/********************************************************************************************************************/
+
+BOOST_AUTO_TEST_CASE(testAccessorPlugins) {
+  BackendFactory::getInstance().setDMapFilePath("logicalnamemap.dmap");
+  ChimeraTK::Device device, target;
+
+  device.open("LMAP0");
+  target.open("PCIE2");
+
+  // test scalar register with multiply plugin
+  auto wordUser = target.getScalarRegisterAccessor<int32_t>("BOARD.WORD_USER");
+  auto wordUserScaled = device.getScalarRegisterAccessor<double>("SingleWord_Scaled");
+
+  wordUser = 2;
+  wordUser.write();
+  wordUserScaled.read();
+  BOOST_CHECK_CLOSE(double(wordUserScaled), 2 * 4.2, 0.001);
+
+  wordUser = 3;
+  wordUser.write();
+  wordUserScaled.read();
+  BOOST_CHECK_CLOSE(double(wordUserScaled), 3 * 4.2, 0.001);
+
+  wordUserScaled = 10 / 4.2;
+  wordUserScaled.write();
+  wordUser.read();
+  BOOST_CHECK_EQUAL(int(wordUser), 10);
+
+  wordUserScaled = 5.4 / 4.2; // rounding down
+  wordUserScaled.write();
+  wordUser.read();
+  BOOST_CHECK_EQUAL(int(wordUser), 5);
+
+  wordUserScaled = 3.6 / 4.2; // rounding up
+  wordUserScaled.write();
+  wordUser.read();
+  BOOST_CHECK_EQUAL(int(wordUser), 4);
+
+  wordUserScaled = -5.4 / 4.2; // rounding down
+  wordUserScaled.write();
+  wordUser.read();
+  BOOST_CHECK_EQUAL(int(wordUser), -5);
+
+  wordUserScaled = -3.6 / 4.2; // rounding up
+  wordUserScaled.write();
+  wordUser.read();
+  BOOST_CHECK_EQUAL(int(wordUser), -4);
+
+  // test scalar register with two multiply plugins
+  auto wordUserScaledTwice = device.getScalarRegisterAccessor<double>("SingleWord_Scaled_Twice");
+
+  wordUser = 2;
+  wordUser.write();
+  wordUserScaledTwice.read();
+  BOOST_CHECK_CLOSE(double(wordUserScaledTwice), 2 * 6, 0.001);
+
+  wordUser = 3;
+  wordUser.write();
+  wordUserScaledTwice.read();
+  BOOST_CHECK_CLOSE(double(wordUserScaledTwice), 3 * 6, 0.001);
+
+  wordUserScaledTwice = 10. / 6.;
+  wordUserScaledTwice.write();
+  wordUser.read();
+  BOOST_CHECK_EQUAL(int(wordUser), 10);
+
+  // test array register with multiply plugin
+  auto area = target.getOneDRegisterAccessor<int32_t>("ADC.AREA_DMAABLE");
+  auto areaScaled = device.getOneDRegisterAccessor<double>("FullArea_Scaled");
+
+  BOOST_CHECK_EQUAL(area.getNElements(), 1024);
+  BOOST_CHECK_EQUAL(areaScaled.getNElements(), 1024);
+
+  for(int i = 0; i < 1024; ++i) area[i] = 100 + i;
+  area.write();
+  areaScaled.read();
+  for(int i = 0; i < 1024; ++i) BOOST_CHECK_CLOSE(areaScaled[i], (100 + i) * 0.5, 0.001);
+
+  for(int i = 0; i < 1024; ++i) areaScaled[i] = (-100 + i) / 0.5;
+  areaScaled.write();
+  area.read();
+  for(int i = 0; i < 1024; ++i) BOOST_CHECK_EQUAL(area[i], -100 + i);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

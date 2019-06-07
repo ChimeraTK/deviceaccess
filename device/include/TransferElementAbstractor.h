@@ -139,6 +139,14 @@ namespace ChimeraTK {
      * unbuffered write transfer, the return value will always be false. */
     bool write(ChimeraTK::VersionNumber versionNumber = {}) { return _impl->write(versionNumber); }
 
+    /** Just like write(), but allows the implementation to destroy the content of the user buffer in the
+     *  process. This is an optional optimisation, hence there is a default implementation which just calls the normal
+     *  doWriteTransfer(). In any case, the application must expect the user buffer of the TransferElement to contain
+     *  undefined data after calling this function. */
+    bool writeDestructively(ChimeraTK::VersionNumber versionNumber = {}) {
+      return _impl->writeDestructively(versionNumber);
+    }
+
     /** Check if transfer element is read only, i\.e\. it is readable but not
      * writeable. */
     bool isReadOnly() const { return _impl->isReadOnly(); }
@@ -271,6 +279,14 @@ namespace ChimeraTK {
      * TransferElement with AccessMode::wait_for_new_data in the group before
      * potentially blocking. */
     void transferFutureWaitCallback() { _impl->transferFutureWaitCallback(); }
+
+    /** Set the current DataValidity for this TransferElement. Will do nothing if the
+     * backend does not support it */
+    void setDataValidity(DataValidity valid = DataValidity::ok) { _impl->setDataValidity(valid); }
+
+    /** Return current validity of the data. Will always return DataValidity::ok if the
+     * backend does not support it */
+    DataValidity dataValidity() const { return _impl->dataValidity(); }
 
    protected:
     /** Untyped pointer to implementation */

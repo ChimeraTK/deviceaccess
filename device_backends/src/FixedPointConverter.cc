@@ -5,14 +5,14 @@ namespace ChimeraTK {
 
   const int FixedPointConverter::zero = 0;
 
-  FixedPointConverter::FixedPointConverter(std::string variableName,
-      unsigned int nBits,
-      int fractionalBits,
-      bool isSignedFlag)
+  FixedPointConverter::FixedPointConverter(
+      std::string variableName, unsigned int nBits, int fractionalBits, bool isSignedFlag)
   : _variableName(variableName), _nBits(nBits), _fractionalBits(fractionalBits), _isSigned(isSignedFlag),
     _fractionalBitsCoefficient(pow(2., -fractionalBits)), _inverseFractionalBitsCoefficient(pow(2., fractionalBits)) {
     reconfigure(nBits, fractionalBits, isSignedFlag);
   }
+
+  /**********************************************************************************************************************/
 
   void FixedPointConverter::reconfigure(unsigned int nBits, int fractionalBits, bool isSignedFlag) {
     _nBits = nBits;
@@ -67,23 +67,6 @@ namespace ChimeraTK {
     // fractional bit coefficients note: we loop over one of the maps only, but
     // initCoefficients() will fill all maps!
     boost::fusion::for_each(_minCookedValues, initCoefficients(this));
-  }
-
-  /**********************************************************************************************************************/
-
-  template<>
-  std::string FixedPointConverter::toCooked<std::string>(uint32_t rawValue) const {
-    if(_fractionalBits == 0) { // use integer conversion
-      if(_isSigned) {
-        return std::to_string(toCooked<int32_t>(rawValue));
-      }
-      else {
-        return std::to_string(toCooked<uint32_t>(rawValue));
-      }
-    }
-    else {
-      return std::to_string(toCooked<double>(rawValue));
-    }
   }
 
   /**********************************************************************************************************************/

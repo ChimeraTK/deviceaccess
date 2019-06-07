@@ -1,0 +1,180 @@
+/**
+\page lmap Logical Name Mapping Backend
+
+Backend to map logical register names onto real hardware registers. It reads the logical name map from an xml file and
+will open internally additional Devices as they are reference in that file.
+
+This page is still incomplete and will be extended in future.
+
+\section cdd CDD syntax
+
+The map file should be specified by the "map" parameter in the CDD, i.e.:
+<code>(logicalNameMap?map=path/to/mapfile.xlmap)</code>
+
+Additional parameters can be passed through the CDD, which are available inside the xlmap file via
+<code>&lt;par&gt;&lt;/par&gt;</code> tags, e.g. when using the CDD
+<code>(logicalNameMap?map=path/to/mapfile.xlmap&myParam=HelloWorld)</code> the tag
+<code>&lt;par&gt;myParam&lt;/par&gt;</code> inside the xlmap file would be replaced with <code>HelloWorld</code>.
+
+\section map Map file syntax
+This section is incomplete.
+
+Example with most features:
+\code{.xml}
+<logicalNameMap>
+    <redirectedRegister name="SingleWord">
+        <targetDevice>PCIE2</targetDevice>
+        <targetRegister>BOARD.WORD_USER</targetRegister>
+    </redirectedRegister>
+    <redirectedRegister name="FullArea">
+        <targetDevice>PCIE2</targetDevice>
+        <targetRegister>ADC.AREA_DMAABLE</targetRegister>
+    </redirectedRegister>
+    <redirectedRegister name="PartOfArea">
+        <targetDevice>PCIE2</targetDevice>
+        <targetRegister>ADC.AREA_DMAABLE</targetRegister>
+        <targetStartIndex>10</targetStartIndex>
+        <numberOfElements>20</numberOfElements>
+    </redirectedRegister>
+    <redirectedChannel name="Channel3">
+        <targetDevice>PCIE3</targetDevice>
+        <targetRegister>TEST.NODMA</targetRegister>
+        <targetChannel>3</targetChannel>
+    </redirectedChannel>
+    <constant name="Constant">
+        <type>integer</type>
+        <value>42</value>
+    </constant>
+    <redirectedRegister name="SingleWord_Scaled">
+        <targetDevice>PCIE2</targetDevice>
+        <targetRegister>BOARD.WORD_USER</targetRegister>
+        <plugin name="multiply">
+          <parameter name="factor">4.2</parameter>
+        </plugin>
+    </redirectedRegister>
+    <module name="MyModule">
+      <module name="SomeSubmodule">
+        <variable name="Variable">
+          <type>integer</type>
+          <value>2</value>
+        </variable>
+      </module>
+      <redirectedChannel name="ConfigurableChannel">
+        <targetDevice>PCIE3</targetDevice>
+        <targetRegister>TEST.NODMA</targetRegister>
+        <targetChannel><ref>/Constant</ref></targetChannel>
+      </redirectedChannel>
+    </module>
+    <redirectedBit name="Bit0ofVar">
+      <targetDevice>this</targetDevice>
+      <targetRegister>/MyModule/SomeSubmodule/Variable</targetRegister>
+      <targetBit>0</targetBit>
+    </redirectedBit>
+</logicalNameMap>
+\endcode
+
+\subsection internal_redirect Self-referencing redirects
+It is possible to redirect registers to other registers in the same xlmap file using the special device <code>this</code>:
+\code{.xml}
+<redirectedBit name="Bit0ofVar">
+  <targetDevice>this</targetDevice>
+  <targetRegister>/MyModule/SomeSubmodule/Variable</targetRegister>
+  <targetBit>0</targetBit>
+</redirectedBit>
+\endcode
+
+\section plugins Accessor plugins
+Special features like mathematical conversions can be enabled on a per-register basis by using accessor plugins. Any
+number of plugins can be enabled for each register. Each plugin takes a list of parameters, which depend on the type of
+the plugin.
+
+In the xlmap file, plugins can be specified by adding one ore more <code>&lt;plugin&gt;</code> tags, e.g.:
+\code{.xml}
+<redirectedRegister name="SingleWord_Scaled_Twice">
+    <targetDevice>PCIE2</targetDevice>
+    <targetRegister>BOARD.WORD_USER</targetRegister>
+    <plugin name="multiply">
+      <parameter name="factor">2</parameter>
+    </plugin>
+    <plugin name="multiply">
+      <parameter name="factor">3</parameter>
+    </plugin>
+</redirectedRegister>
+\endcode
+This will enable two instances of the <code>multiply</code> plugin.
+
+\subsection plugins_reference List of plugins
+The following plugins can be enabled. It is not possible to extend the Logical Name Mapping Backend with plugins through
+runtime loading or linking, all plugins have to be shipped with the DeviceAccess library.
+
+\subsubsection plugins_reference_multiply multiply
+The <code>multiply</code> plugin multiplies the value of the register with the given factor. Note that the
+multiplication is done for both reading and writing. Hence if this plugin is used e.g. to convert a raw value into a
+physical value, the register should be used in one direction only. The plugin will internally always read the value as
+a 64 bit floating point, so the result may not be bit exact. The target register must be numeric.
+
+Parameters:
+- <code>factor</code>: Factor to multiply the value with. Will be interpreted as a (floating-point) number.
+
+\subsubsection plugins_reference_math math
+The <code>math</code> plugin allows to apply an arbitrary mathematical formula to the data. The exprtk library is used
+to parse the library. For an exact documentation of the possible syntax, please refer to its documentation:
+http://www.partow.net/programming/exprtk/index.html
+
+Similar to the <code>multiply</code> plugin, the same formula is applied for both reading and writing, which usually
+makes only sense if the register is used in a single direction. The shape of the register cannot be changed, i.e.
+the number of elements returned by the formula must be equal to the number of elements of the target register.
+
+Parameters:
+- <code>formula</code>: The formula to apply to the data. Within the formula, the parameter <code>x</code> can be used
+  to reference the current register value.
+- Any additional parameter value will be interpreted as a register name of the logical name mapper device. The register
+  value will be made available to the formula by the name of the parameter. Everytime the formula is evaluated, the
+  registers will be read, so the current values are provided.
+
+Examples for formulae:
+- <code>x/7 + 13</code>
+
+  This will only work for scalar registers
+
+- <code>return [ x/7 + 13 ];</code>
+
+  Can be used for both scalars and arrays. In case of an array, the formula will be
+  applied to each element of the array, since exprtk supports processing of arrays (or vectors as they call it in their
+  documentation).
+
+- Full example with parameters:
+\code{.xml}
+  <plugin name="math">
+    <parameter name="formula">x*factor + offset</parameter>
+    <parameter name="factor">/Calibration/factor</parameter>
+    <parameter name="offset">/Calibration/offset</parameter>
+  </plugin>
+\endcode
+  The registers <code>/Calibration/factor</code> and <code>/Calibration/offset</code> need to be specified in the same
+  xlmap file. They wil be read each time the formula is evaluated (because the plugin register is read or written).
+  Parameter registers can be scalar or 1D arrays.
+
+  Hint: If the parameter register is a variable, it can be written by the application. This allows e.g. the use of
+  calibration value otherwise not known to the device.
+
+\subsubsection plugins_reference_force_read_only forceReadOnly
+The <code>forceReadOnly</code> plugin changes the access mode of a register to read-only. The target register has to be
+writeable. This plugin accepts no parameters.
+
+\subsubsection plugins_reference_monostable_trigger monostableTrigger
+The <code>monostableTrigger</code> implements a monostable behaviour triggered by a write transaction. The target
+register has to be an integral scalar and has to be writeable. The resulting logical register will be write only with
+the type RegisterInfo::FundamentalType::nodata, i.e. the data written to the register will be discarded. Instead, the
+"active" value will be written, and after a delay the "inactive" value.
+
+Parameters:
+- <code>milliseconds</code>: Delay in milliseconds.
+- <code>active</code>: The active value to be written before the delay, as unsigned 32 bit integer. Optional, defaults
+  to 1
+- <code>inactive</code>: The inactive value to be written after the delay, as unsigned 32 bit integer. Optional,
+  defaults to 0
+
+Note that writing to the logical register will block for the full duration of the two target write transfers including
+the delay.
+*/

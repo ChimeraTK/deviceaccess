@@ -16,6 +16,36 @@ namespace ChimeraTK {
   static const std::string MULTIPLEXED_SEQUENCE_PREFIX = "AREA_MULTIPLEXED_SEQUENCE_";
   static const std::string SEQUENCE_PREFIX = "SEQUENCE_";
 
+  /********************************************************************************************************************/
+
+  namespace detail {
+
+    /** Iteration on a raw buffer with a given pitch (increment from one element to the next) in bytes */
+    template<typename DATA_TYPE>
+    struct pitched_iterator : std::iterator<std::random_access_iterator_tag, DATA_TYPE> {
+      pitched_iterator(void* begin, size_t pitch) : _ptr(reinterpret_cast<uint8_t*>(begin)), _pitch(pitch) {}
+      pitched_iterator& operator++() {
+        _ptr += _pitch;
+        return *this;
+      }
+      pitched_iterator operator++(int) {
+        pitched_iterator retval = *this;
+        ++(*this);
+        return retval;
+      }
+      pitched_iterator operator+(size_t n) { return pitched_iterator(_ptr + n * _pitch, _pitch); }
+      bool operator==(pitched_iterator other) const { return _ptr == other._ptr; }
+      bool operator!=(pitched_iterator other) const { return !(*this == other); }
+      size_t operator-(pitched_iterator other) const { return _ptr - other._ptr; }
+      DATA_TYPE& operator*() const { return *reinterpret_cast<DATA_TYPE*>(_ptr); }
+
+     private:
+      uint8_t* _ptr;
+      const size_t _pitch;
+    };
+
+  } // namespace detail
+
   /*********************************************************************************************************************/
   /** Implementation of the NDRegisterAccessor for NumericAddressedBackends for
    * multiplexd 2D registers
@@ -83,6 +113,9 @@ namespace ChimeraTK {
 
     std::vector<RegisterInfoMap::RegisterInfo> _sequenceInfos;
 
+    std::vector<detail::pitched_iterator<int32_t>> _startIterators;
+    std::vector<detail::pitched_iterator<int32_t>> _endIterators;
+
     uint32_t bytesPerBlock;
 
     /// register and module name
@@ -106,6 +139,8 @@ namespace ChimeraTK {
     std::list<boost::shared_ptr<TransferElement>> getInternalElements() override { return {}; }
 
     void replaceTransferElement(boost::shared_ptr<TransferElement> /*newElement*/) override {} // LCOV_EXCL_LINE
+
+    using NDRegisterAccessor<UserType>::buffer_2D;
   };
 
   /********************************************************************************************************************/
@@ -158,6 +193,7 @@ namespace ChimeraTK {
         }
 
         // store sequence info and fixed point converter
+        if(sequenceInfo.width > sequenceInfo.nBytes * 8) sequenceInfo.width = sequenceInfo.nBytes * 8;
         _sequenceInfos.push_back(sequenceInfo);
         _converters.push_back(FixedPointConverter(
             registerPathName, sequenceInfo.width, sequenceInfo.nFractionalBits, sequenceInfo.signedFlag));
@@ -198,9 +234,8 @@ namespace ChimeraTK {
       _nBytes = bytesPerBlock * _numberOfElements;
       if(_nBytes % sizeof(int32_t) > 0) _nBytes += 4 - _nBytes % sizeof(int32_t); // round up to the next multiple of 4
       if(_nBytes > areaInfo.nBytes) {
-        throw ChimeraTK::logic_error("Requested number of elements exceeds the "
-                                     "size of the register (late, redundant "
-                                     "safety check)!");
+        throw ChimeraTK::logic_error(
+            "Requested number of elements exceeds the size of the register (late, redundant safety check)!");
       }
       _nBlocks = _numberOfElements;
 
@@ -210,8 +245,16 @@ namespace ChimeraTK {
         NDRegisterAccessor<UserType>::buffer_2D[i].resize(_nBlocks);
       }
 
-      // allocate the raw io buffer
-      _ioBuffer.resize(_nBytes / sizeof(int32_t));
+      // allocate the raw io buffer. Make it one element larger to make sure we can access the last byte via int32_t*
+      _ioBuffer.resize(_nBytes / sizeof(int32_t) + 1);
+
+      // compute pitched iterators for accessing the channels
+      uint8_t* standOfMyioBuffer = reinterpret_cast<uint8_t*>(&_ioBuffer[0]);
+      for(size_t sequenceIndex = 0; sequenceIndex < _converters.size(); ++sequenceIndex) {
+        _startIterators.push_back(detail::pitched_iterator<int32_t>(standOfMyioBuffer, bytesPerBlock));
+        _endIterators.push_back(_startIterators.back() + _nBlocks);
+        standOfMyioBuffer += _sequenceInfos[sequenceIndex].nBytes;
+      }
     }
     catch(...) {
       this->shutdown();
@@ -230,32 +273,10 @@ namespace ChimeraTK {
 
   template<class UserType>
   void NumericAddressedBackendMuxedRegisterAccessor<UserType>::doPostRead() {
-    uint8_t* standOfMyioBuffer = reinterpret_cast<uint8_t*>(&_ioBuffer[0]);
-    for(size_t blockIndex = 0; blockIndex < _nBlocks; ++blockIndex) {
-      for(size_t sequenceIndex = 0; sequenceIndex < _converters.size(); ++sequenceIndex) {
-        switch(_sequenceInfos[sequenceIndex].nBytes) {
-          case 1: // 8 bit variables
-            NDRegisterAccessor<UserType>::buffer_2D[sequenceIndex][blockIndex] =
-                _converters[sequenceIndex].template toCooked<UserType>(*(standOfMyioBuffer));
-            standOfMyioBuffer++;
-            break;
-          case 2: // 16 bit words
-            NDRegisterAccessor<UserType>::buffer_2D[sequenceIndex][blockIndex] =
-                _converters[sequenceIndex].template toCooked<UserType>(
-                    *(reinterpret_cast<uint16_t*>(standOfMyioBuffer)));
-            standOfMyioBuffer = standOfMyioBuffer + 2;
-            break;
-          case 4: // 32 bit words
-            NDRegisterAccessor<UserType>::buffer_2D[sequenceIndex][blockIndex] =
-                _converters[sequenceIndex].template toCooked<UserType>(
-                    *(reinterpret_cast<uint32_t*>(standOfMyioBuffer)));
-            standOfMyioBuffer = standOfMyioBuffer + 4;
-            break;
-        }
-      }
+    for(size_t i = 0; i < _converters.size(); ++i) {
+      _converters[i].template vectorToCooked<UserType>(_startIterators[i], _endIterators[i], buffer_2D[i].begin());
     }
     currentVersion = {};
-
     SyncNDRegisterAccessor<UserType>::doPostRead();
   }
 

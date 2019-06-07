@@ -15,6 +15,8 @@
 #include "RegisterCatalogue.h"
 #include "RegisterPath.h"
 
+#include "LNMAccessorPlugin.h"
+
 // forward declaration
 namespace xmlpp {
   class Node;
@@ -51,13 +53,11 @@ namespace ChimeraTK {
     void parseElement(RegisterPath currentPath, const xmlpp::Element* element);
 
     /** throw a parsing error with more information */
-    [[noreturn]] void parsingError(const std::string& message);
+    [[noreturn]] void parsingError(const xmlpp::Node* node, const std::string& message);
 
     /** Build a Value object for a given subnode. */
     template<typename ValueType>
-    ValueType getValueFromXmlSubnode(const xmlpp::Node* node,
-        const std::string& subnodeName,
-        bool hasDefault = false,
+    ValueType getValueFromXmlSubnode(const xmlpp::Node* node, const std::string& subnodeName, bool hasDefault = false,
         ValueType defaultValue = ValueType());
     template<typename ValueType>
     std::vector<ValueType> getValueVectorFromXmlSubnode(const xmlpp::Node* node, const std::string& subnodeName);
@@ -74,6 +74,10 @@ namespace ChimeraTK {
     /** parameter map */
     std::map<std::string, std::string> _parameters;
   };
+
+  template<>
+  std::string LogicalNameMapParser::getValueFromXmlSubnode<std::string>(
+      const xmlpp::Node* node, const std::string& subnodeName, bool hasDefault, std::string defaultValue);
 
 } // namespace ChimeraTK
 

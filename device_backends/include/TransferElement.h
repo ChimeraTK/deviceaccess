@@ -35,6 +35,20 @@ namespace ChimeraTK {
 
   class TransferGroup;
 
+  /**
+   * @brief The current state of the data
+   *
+   * This is a flag to describe the validity of the data. It should be used to signalize
+   * whether or not to trust the data currently. It MUST NOT be used to signalize any
+   * communication errors with a device, rather to signalize the consumer after such an
+   * error that the data is currently not trustable, because we are performing calculations
+   * with the last known valid data, for example.
+   */
+  enum class DataValidity {
+    ok, /// The data is considered valid
+    faulty /// The data is not considered valid
+  };
+
   using ChimeraTK::TransferFuture;
 
   /*******************************************************************************************************************/
@@ -43,8 +57,7 @@ namespace ChimeraTK {
   class TransferElement : public boost::enable_shared_from_this<TransferElement> {
    public:
     /** Creates a transfer element with the specified name. */
-    TransferElement(std::string const& name = std::string(),
-        std::string const& unit = std::string(unitNotSet),
+    TransferElement(std::string const& name = std::string(), std::string const& unit = std::string(unitNotSet),
         std::string const& description = std::string())
     : _name(name), _unit(unit), _description(description), isInTransferGroup(false) {}
 
@@ -77,6 +90,14 @@ namespace ChimeraTK {
 
     /** Return the AccessModeFlags for this TransferElement. */
     virtual AccessModeFlags getAccessModeFlags() const = 0;
+
+    /** Set the current DataValidity for this TransferElement. Will do nothing if the
+     * backend does not support it */
+    virtual void setDataValidity(DataValidity valid = DataValidity::ok) { (void) valid; }
+
+    /** Return current validity of the data. Will always return DataValidity::ok if the
+     * backend does not support it */
+    virtual DataValidity dataValidity() const { return DataValidity::ok; }
 
     /** Read the data from the device. If AccessMode::wait_for_new_data was set,
      * this function will block until new data has arrived. Otherwise it still
@@ -189,10 +210,6 @@ namespace ChimeraTK {
      * the write transfer (e.g. due to an buffer overflow). In case of an
      * unbuffered write transfer, the return value will always be false. */
     bool write(ChimeraTK::VersionNumber versionNumber = {}) {
-      // Note: this override is final to prevent implementations from implementing
-      // this logic incorrectly. Originally this function was non-virtual in
-      // TransferElement, but NDRegisterAccessorBridge has to use a different
-      // implementation.
       if(TransferElement::isInTransferGroup) {
         throw ChimeraTK::logic_error("Calling read() or write() on an accessor "
                                      "which is part of a TransferGroup "
@@ -201,6 +218,23 @@ namespace ChimeraTK {
       this->writeTransactionInProgress = false;
       preWrite();
       bool ret = doWriteTransfer(versionNumber);
+      postWrite();
+      return ret;
+    }
+
+    /** Just like write(), but allows the implementation to destroy the content of the user buffer in the
+     *  process. This is an optional optimisation, hence there is a default implementation which just calls the normal
+     *  doWriteTransfer(). In any case, the application must expect the user buffer of the TransferElement to contain
+     *  undefined data after calling this function. */
+    bool writeDestructively(ChimeraTK::VersionNumber versionNumber = {}) {
+      if(TransferElement::isInTransferGroup) {
+        throw ChimeraTK::logic_error("Calling read() or write() on an accessor "
+                                     "which is part of a TransferGroup "
+                                     "is not allowed.");
+      }
+      this->writeTransactionInProgress = false;
+      preWrite();
+      bool ret = doWriteTransferDestructively(versionNumber);
       postWrite();
       return ret;
     }
@@ -371,6 +405,15 @@ namespace ChimeraTK {
      *  Calling this function after preWrite() and followed by postWrite() is
      * exactly equivalent to a call to write(). */
     virtual bool doWriteTransfer(ChimeraTK::VersionNumber versionNumber = {}) = 0;
+
+    /**
+     * Just like doWriteTransfer(), but allows the implementation to destroy the content of the user buffer in the
+     * process. This is an optional optimisation, hence there is a default implementation which just calls the normal
+     * doWriteTransfer().
+     */
+    virtual bool doWriteTransferDestructively(ChimeraTK::VersionNumber versionNumber = {}) {
+      return doWriteTransfer(versionNumber);
+    }
 
     /**
      *  Check whether the TransferElement can be used in places where the

@@ -20,9 +20,10 @@ namespace ChimeraTK {
 
   /********************************************************************************************************************/
 
-  void LogicalNameMappingBackend::parse() {
+  void LogicalNameMappingBackend::parse() const {
     // don't run, if already parsed
     if(hasParsed) return;
+    hasParsed = true;
 
     // parse the map fle
     LogicalNameMapParser parser = LogicalNameMapParser(_lmapFileName, _parameters);
@@ -38,12 +39,16 @@ namespace ChimeraTK {
 
   void LogicalNameMappingBackend::open() {
     parse();
+
     // open all referenced devices
     for(auto device = _devices.begin(); device != _devices.end(); ++device) {
       if(!device->second->isOpen()) device->second->open();
     }
+
     // flag as opened
     _opened = true;
+
+    // make sure to update the catalogue from target devices in case they change their catalogue upon open
     catalogueCompleted = false;
   }
 
@@ -60,26 +65,42 @@ namespace ChimeraTK {
 
   /********************************************************************************************************************/
 
-  boost::shared_ptr<DeviceBackend> LogicalNameMappingBackend::createInstance(std::string /*address*/,
-      std::map<std::string, std::string>
-          parameters) {
+  boost::shared_ptr<DeviceBackend> LogicalNameMappingBackend::createInstance(
+      std::string /*address*/, std::map<std::string, std::string> parameters) {
     if(parameters["map"].empty()) {
       throw ChimeraTK::logic_error("Map file name not speficied.");
     }
     auto ptr = boost::make_shared<LogicalNameMappingBackend>(parameters["map"]);
     parameters.erase(parameters.find("map"));
     ptr->_parameters = parameters;
-    return ptr;
+    return boost::static_pointer_cast<DeviceBackend>(ptr);
   }
 
   /********************************************************************************************************************/
 
   template<typename UserType>
   boost::shared_ptr<NDRegisterAccessor<UserType>> LogicalNameMappingBackend::getRegisterAccessor_impl(
-      const RegisterPath& registerPathName,
-      size_t numberOfWords,
-      size_t wordOffsetInRegister,
-      AccessModeFlags flags) {
+      const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags,
+      size_t omitPlugins) {
+    parse();
+    // check if accessor plugin present
+    auto info = boost::static_pointer_cast<LNMBackendRegisterInfo>(_catalogue_mutable.getRegister(registerPathName));
+    if(info->plugins.size() <= omitPlugins) {
+      // no plugin: directly return the accessor
+      return getRegisterAccessor_internal<UserType>(registerPathName, numberOfWords, wordOffsetInRegister, flags);
+    }
+    else {
+      return info->plugins[omitPlugins]->getAccessor<UserType>(
+          boost::static_pointer_cast<LogicalNameMappingBackend>(shared_from_this()), numberOfWords,
+          wordOffsetInRegister, flags, omitPlugins);
+    }
+  }
+
+  /********************************************************************************************************************/
+
+  template<typename UserType>
+  boost::shared_ptr<NDRegisterAccessor<UserType>> LogicalNameMappingBackend::getRegisterAccessor_internal(
+      const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags) {
     // obtain register info
     auto info = boost::static_pointer_cast<LNMBackendRegisterInfo>(_catalogue_mutable.getRegister(registerPathName));
 
@@ -114,8 +135,8 @@ namespace ChimeraTK {
       ptr = boost::shared_ptr<NDRegisterAccessor<UserType>>(new LNMBackendBitAccessor<UserType>(
           shared_from_this(), registerPathName, numberOfWords, wordOffsetInRegister, flags));
     }
-    else if(info->targetType == LNMBackendRegisterInfo::TargetType::INT_CONSTANT ||
-        info->targetType == LNMBackendRegisterInfo::TargetType::INT_VARIABLE) {
+    else if(info->targetType == LNMBackendRegisterInfo::TargetType::CONSTANT ||
+        info->targetType == LNMBackendRegisterInfo::TargetType::VARIABLE) {
       ptr = boost::shared_ptr<NDRegisterAccessor<UserType>>(new LNMBackendVariableAccessor<UserType>(
           shared_from_this(), registerPathName, numberOfWords, wordOffsetInRegister, flags));
     }
@@ -132,6 +153,7 @@ namespace ChimeraTK {
 
   const RegisterCatalogue& LogicalNameMappingBackend::getRegisterCatalogue() const {
     if(catalogueCompleted) return _catalogue_mutable;
+    parse();
 
     // fill in information to the catalogue from the target devices
     for(auto& info : _catalogue_mutable) {
@@ -173,8 +195,35 @@ namespace ChimeraTK {
       if((int)info_cast.length == 0) info_cast.length = target_info->getNumberOfElements();
     }
 
+    // update catalogue info by plugins
+    for(auto& info : _catalogue_mutable) {
+      LNMBackendRegisterInfo& info_cast = static_cast<LNMBackendRegisterInfo&>(info);
+      for(auto& plugin : info_cast.plugins) {
+        plugin->updateRegisterInfo();
+      }
+    }
+
     catalogueCompleted = true;
     return _catalogue_mutable;
   }
+
+  /********************************************************************************************************************/
+  // Instantiate templated members - this is required for some gcc versions like the one on Ubuntu 18.04
+
+  template<typename UserType>
+  class InstantiateLogicalNameMappingBackendFunctions {
+    LogicalNameMappingBackend* p{nullptr};
+
+    void getRegisterAccessor_impl(const RegisterPath& registerPathName, size_t numberOfWords,
+        size_t wordOffsetInRegister, AccessModeFlags flags, size_t omitPlugins) {
+      p->getRegisterAccessor_impl<UserType>(registerPathName, numberOfWords, wordOffsetInRegister, flags, omitPlugins);
+    }
+
+    void getRegisterAccessor_internal(const RegisterPath& registerPathName, size_t numberOfWords,
+        size_t wordOffsetInRegister, AccessModeFlags flags) {
+      p->getRegisterAccessor_internal<UserType>(registerPathName, numberOfWords, wordOffsetInRegister, flags);
+    }
+  };
+  INSTANTIATE_TEMPLATE_FOR_CHIMERATK_USER_TYPES(InstantiateLogicalNameMappingBackendFunctions);
 
 } // namespace ChimeraTK
