@@ -139,17 +139,14 @@ namespace ChimeraTK {
                 ::read(_deviceID, &dummy, sizeof(int));
 
                 read(0 /*bar*/, interruptWordAddress, &interruptWord, sizeof (int32_t));
-#ifdef _DEBUG
-                std::cout << "got interrupt " << dummy << std::endl;
-                std::cout << "interrupt Word " << interruptWord << std::endl;
-#endif
+
                 //clear the interrupt/s
                 write(0 /*bar*/, interruptWordAddress, &interruptWord, sizeof (int32_t)); 
-            
+                            
                 if (!_accessorLists.empty()) {                
                     for (auto & accessorList : _accessorLists) {
                         int i = accessorList.first;
-                        uint32_t iMask = 1 < i;
+                        uint32_t iMask = (1 << i);
                         if (iMask & interruptWord & !accessorList.second.empty()) {
                             for (auto & accessor : accessorList.second) {
                                 accessor->send();
@@ -187,9 +184,9 @@ namespace ChimeraTK {
                     throw ChimeraTK::logic_error("Not an interrupt Register");
                 }
                 
-                // detemine index from RegisterPath
+                // determine index from RegisterPath
                 int interruptNum = ((registerInfo->registerAccess) >> 2) - 1;
-                
+
                 accessor = boost::shared_ptr<NDRegisterAccessor < UserType >> 
                         (new InterruptWaitingAccessor_impl<UserType>(interruptNum, boost::dynamic_pointer_cast<UioBackend>(shared_from_this()), registerPathName, numberOfWords, wordOffsetInRegister, flags));
                 

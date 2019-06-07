@@ -90,6 +90,7 @@ namespace ChimeraTK {
         size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags): 
         NumericAddressedBackendRegisterAccessor<UserType,FixedPointConverter,true>(dev, registerPathName, numberOfWords, wordOffsetInRegister, flags),
                 _backend(dev), _interruptNum(interruptNum) {
+                _myQueue = cppext::future_queue<UserType>(1);
                 _backend->addAccessor(_interruptNum,this);
         }
         
@@ -109,14 +110,11 @@ namespace ChimeraTK {
         }
 
         boost::shared_ptr<UioBackend> _backend;
-        //        std::map< int, std::list< boost::shared_ptr<InterruptWaitingAccessor> > > _accessorLists;
         cppext::future_queue<UserType> _myQueue;
         UserType _buffer;
         size_t _interruptNum;
         
   };
-
-
   
 } // namespace ChimeraTK
 #endif /* CHIMERA_TK_UIO_BACKEND_H */
