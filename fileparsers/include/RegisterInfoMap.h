@@ -55,8 +55,9 @@ namespace ChimeraTK {
      */
     class RegisterInfo : public ChimeraTK::RegisterInfo {
      public:
-      enum Access { READ = 1 << 0, WRITE = 1 << 1, READWRITE = READ | WRITE,
-      I0 = 1 << 2,
+      enum Access { READ = 1 << 0, WRITE = 1 << 1, READWRITE = READ | WRITE
+#ifdef CHIMERATK_HAVE_UIO_BACKEND              
+      ,I0 = 1 << 2,
       I1 = 2 << 2,
       I2 = 3 << 2,
       I3 = 4 << 2,
@@ -88,6 +89,7 @@ namespace ChimeraTK {
       I29 = 30 << 2,
       I30 = 31 << 2,
       I31 = 32 << 2
+#endif              
       };
       /** Enum descibing the data interpretation:
        *  \li Fixed point (includes integer = 0 fractional bits)

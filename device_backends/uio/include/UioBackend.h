@@ -35,7 +35,7 @@ namespace ChimeraTK {
     std::map< int, std::list<InterruptWaitingAccessor *> > _accessorLists;
     
     // do we need this?
-    //std::atomic<bool> stopInnterruptLoop = {false};
+    std::atomic<bool> _stopInnterruptLoop = {false};
     void interruptWaitingLoop();
     
     template<typename UserType> friend struct InterruptWaitingAccessor_impl;

@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fstream>
 #include <sys/mman.h>
+#include <pthread.h>
 
 //#include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
@@ -62,14 +63,22 @@ namespace ChimeraTK {
         }
         
         _interruptWaitingThread = std::thread(&UioBackend::interruptWaitingLoop, this);
-        _interruptWaitingThread.detach();
-#ifdef _DEBUG
-        std::cout << "uio irq thread detached " << std::endl;
-#endif
+        
+        //if user has root privilge, increase priority of interruptWaitingThread
+        if (0 == geteuid()) {
+            struct sched_param param;
+            param.sched_priority = 11;
+        
+            if (pthread_setschedparam(_interruptWaitingThread.native_handle(), SCHED_FIFO, &param)) {
+                throw ChimeraTK::runtime_error(createErrorStringWithErrnoText("Cannot set interruptWaitingThread priority: "));
+            }
+        }
     }
 
     void UioBackend::close() {
         if (_opened) {
+            _stopInnterruptLoop = true;
+            _interruptWaitingThread.join();
             UioUnmap();
             ::close(_deviceID);
         }
@@ -132,7 +141,7 @@ namespace ChimeraTK {
         poll_fds[0].fd = _deviceID;
         poll_fds[0].events = POLLIN;
 
-        while (_opened) {// only works with detached thread                                        
+        while (_stopInnterruptLoop == false) {// only works with detached thread                                        
             int ret = ::poll(poll_fds, 1, 100); //100 ms timeout
             if ((0 < ret) && (poll_fds[0].revents && POLLIN)){
                 int dummy;
@@ -156,6 +165,10 @@ namespace ChimeraTK {
                 }
             }
         }
+#ifdef _DEBUG
+        std::cout << "interruptWaitingThread end" << std::endl;
+#endif
+        
     }
 
     template<typename UserType>
