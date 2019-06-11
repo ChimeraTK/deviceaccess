@@ -64,7 +64,7 @@ namespace ChimeraTK {
         
         _interruptWaitingThread = std::thread(&UioBackend::interruptWaitingLoop, this);
         
-        //if user has root privilge, increase priority of interruptWaitingThread
+        //if user has root privilege, increase priority of interruptWaitingThread
         if (0 == geteuid()) {
             struct sched_param param;
             param.sched_priority = 11;
