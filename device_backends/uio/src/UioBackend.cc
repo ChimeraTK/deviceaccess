@@ -174,9 +174,17 @@ namespace ChimeraTK {
     template<typename UserType>
     boost::shared_ptr<NDRegisterAccessor<UserType>> UioBackend::getRegisterAccessor_impl(
             const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags) {
-        if (registerPathName.startsWith("INTERRUPT/")) 
+        
+        boost::shared_ptr<RegisterInfo> info = getRegisterInfo(registerPathName);
+        auto registerInfo = boost::static_pointer_cast<RegisterInfoMap::RegisterInfo>(info);  
+        
+        if ((registerInfo->registerAccess >= RegisterInfoMap::RegisterInfo::Access::I0) && 
+                        (registerInfo->registerAccess <= RegisterInfoMap::RegisterInfo::Access::I31))
         {
-            return getInterruptWaitingAccessor<UserType>(registerPathName, numberOfWords, wordOffsetInRegister, flags);
+            // determine index from RegisterPath
+            int interruptNum = ((registerInfo->registerAccess) >> 2) - 1;
+
+            return getInterruptWaitingAccessor<UserType>(interruptNum, registerPathName, numberOfWords, wordOffsetInRegister, flags);
         } 
         else 
         {  
@@ -186,20 +194,10 @@ namespace ChimeraTK {
 
     template<typename UserType>
     boost::shared_ptr<NDRegisterAccessor<UserType>> UioBackend::getInterruptWaitingAccessor(
-            const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags) {
+            int interruptNum, const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags) {
         boost::shared_ptr<NDRegisterAccessor < UserType>> accessor;
-
-                boost::shared_ptr<RegisterInfo> info = getRegisterInfo(registerPathName);
-                auto registerInfo = boost::static_pointer_cast<RegisterInfoMap::RegisterInfo>(info);  
-                                
-                if ((registerInfo->registerAccess < RegisterInfoMap::RegisterInfo::Access::I0) || 
-                        (registerInfo->registerAccess > RegisterInfoMap::RegisterInfo::Access::I31)) {
-                    throw ChimeraTK::logic_error("Not an interrupt Register");
-                }
                 
-                // determine index from RegisterPath
-                int interruptNum = ((registerInfo->registerAccess) >> 2) - 1;
-
+                
                 accessor = boost::shared_ptr<NDRegisterAccessor < UserType >> 
                         (new InterruptWaitingAccessor_impl<UserType>(interruptNum, boost::dynamic_pointer_cast<UioBackend>(shared_from_this()), registerPathName, numberOfWords, wordOffsetInRegister, flags));
                 

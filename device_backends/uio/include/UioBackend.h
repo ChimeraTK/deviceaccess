@@ -67,7 +67,7 @@ namespace ChimeraTK {
     
     template<typename UserType>
     boost::shared_ptr<NDRegisterAccessor<UserType>> getInterruptWaitingAccessor(
-        const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags);
+        int interruptNum, const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags);
 
    protected:
     void removeAccessor(int interruptNr, InterruptWaitingAccessor * accessor){
