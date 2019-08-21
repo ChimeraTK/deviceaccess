@@ -156,7 +156,7 @@ namespace ChimeraTK {
                     for (auto & accessorList : _accessorLists) {
                         int i = accessorList.first;
                         uint32_t iMask = (1 << i);
-                        if (iMask & interruptWord & !accessorList.second.empty()) {
+                        if (((iMask & interruptWord) != 0) && !accessorList.second.empty()) {
                             for (auto & accessor : accessorList.second) {
                                 accessor->send();
                             }
