@@ -131,7 +131,16 @@ namespace ChimeraTK {
     }
 
     void UioBackend::interruptWaitingLoop() {
-        int32_t interruptWord;   
+        int32_t interruptWord;  
+        
+        int ret;
+        pthread_t this_thread = pthread_self();
+        struct sched_param params;
+        params.sched_priority = sched_get_priority_max(SCHED_FIFO);
+        ret = pthread_setschedparam(this_thread, SCHED_FIFO, &params);
+        if (ret != 0) {
+            std::cout << "Unsuccessful in setting thread realtime prio" << std::endl;
+        }
         
         boost::shared_ptr<RegisterInfo> info = getRegisterInfo("INTERRUPT_WORD");
         auto registerInfo = boost::static_pointer_cast<RegisterInfoMap::RegisterInfo>(info);                
@@ -142,7 +151,7 @@ namespace ChimeraTK {
         poll_fds[0].events = POLLIN;
 
         while (_stopInnterruptLoop == false) {// only works with detached thread                                        
-            int ret = ::poll(poll_fds, 1, 100); //100 ms timeout
+            ret = ::poll(poll_fds, 1, 100); //100 ms timeout
             if ((0 < ret) && (poll_fds[0].revents && POLLIN)){
                 int dummy;
                 ::read(_deviceID, &dummy, sizeof(int));
@@ -183,8 +192,9 @@ namespace ChimeraTK {
         {
             // determine index from RegisterPath
             int interruptNum = ((registerInfo->registerAccess) >> 2) - 1;
+            uint32_t timeout = registerInfo->address;
 
-            return getInterruptWaitingAccessor<UserType>(interruptNum, registerPathName, numberOfWords, wordOffsetInRegister, flags);
+            return getInterruptWaitingAccessor<UserType>(interruptNum, timeout, registerPathName, numberOfWords, wordOffsetInRegister, flags);
         } 
         else 
         {  
@@ -194,12 +204,12 @@ namespace ChimeraTK {
 
     template<typename UserType>
     boost::shared_ptr<NDRegisterAccessor<UserType>> UioBackend::getInterruptWaitingAccessor(
-            int interruptNum, const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags) {
+            int interruptNum, uint32_t timeout, const RegisterPath& registerPathName, size_t numberOfWords, size_t wordOffsetInRegister, AccessModeFlags flags) {
         boost::shared_ptr<NDRegisterAccessor < UserType>> accessor;
                 
                 
                 accessor = boost::shared_ptr<NDRegisterAccessor < UserType >> 
-                        (new InterruptWaitingAccessor_impl<UserType>(interruptNum, boost::dynamic_pointer_cast<UioBackend>(shared_from_this()), registerPathName, numberOfWords, wordOffsetInRegister, flags));
+                        (new InterruptWaitingAccessor_impl<UserType>(interruptNum, timeout, boost::dynamic_pointer_cast<UioBackend>(shared_from_this()), registerPathName, numberOfWords, wordOffsetInRegister, flags));
                 
         return accessor;
     }
